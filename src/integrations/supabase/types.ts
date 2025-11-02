@@ -14,6 +14,30 @@ export type Database = {
   }
   public: {
     Tables: {
+      admin_activity_log: {
+        Row: {
+          action: string
+          admin_id: string
+          created_at: string | null
+          details: Json | null
+          id: string
+        }
+        Insert: {
+          action: string
+          admin_id: string
+          created_at?: string | null
+          details?: Json | null
+          id?: string
+        }
+        Update: {
+          action?: string
+          admin_id?: string
+          created_at?: string | null
+          details?: Json | null
+          id?: string
+        }
+        Relationships: []
+      }
       bookings: {
         Row: {
           created_at: string | null
@@ -228,42 +252,60 @@ export type Database = {
       }
       profiles: {
         Row: {
+          aadhaar_number: string | null
+          aadhaar_verified: boolean | null
           avatar_url: string | null
           created_at: string | null
           date_of_birth: string | null
+          driving_license_number: string | null
+          driving_license_photo_url: string | null
+          driving_license_verified: boolean | null
           gender: Database["public"]["Enums"]["gender"] | null
           id: string
           kyc_document_url: string | null
           kyc_status: Database["public"]["Enums"]["kyc_status"] | null
           name: string
+          permanent_address: string | null
           phone: string
           role: Database["public"]["Enums"]["app_role"]
           selfie_url: string | null
           updated_at: string | null
         }
         Insert: {
+          aadhaar_number?: string | null
+          aadhaar_verified?: boolean | null
           avatar_url?: string | null
           created_at?: string | null
           date_of_birth?: string | null
+          driving_license_number?: string | null
+          driving_license_photo_url?: string | null
+          driving_license_verified?: boolean | null
           gender?: Database["public"]["Enums"]["gender"] | null
           id: string
           kyc_document_url?: string | null
           kyc_status?: Database["public"]["Enums"]["kyc_status"] | null
           name: string
+          permanent_address?: string | null
           phone: string
           role?: Database["public"]["Enums"]["app_role"]
           selfie_url?: string | null
           updated_at?: string | null
         }
         Update: {
+          aadhaar_number?: string | null
+          aadhaar_verified?: boolean | null
           avatar_url?: string | null
           created_at?: string | null
           date_of_birth?: string | null
+          driving_license_number?: string | null
+          driving_license_photo_url?: string | null
+          driving_license_verified?: boolean | null
           gender?: Database["public"]["Enums"]["gender"] | null
           id?: string
           kyc_document_url?: string | null
           kyc_status?: Database["public"]["Enums"]["kyc_status"] | null
           name?: string
+          permanent_address?: string | null
           phone?: string
           role?: Database["public"]["Enums"]["app_role"]
           selfie_url?: string | null
@@ -449,6 +491,27 @@ export type Database = {
           },
         ]
       }
+      user_roles: {
+        Row: {
+          created_at: string | null
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
       vehicles: {
         Row: {
           brand: string
@@ -504,7 +567,13 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
       app_role: "user" | "driver" | "admin"

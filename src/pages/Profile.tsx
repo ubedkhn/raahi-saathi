@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -15,7 +16,7 @@ import { useTheme } from "next-themes";
 import { 
   ArrowLeft, User, Settings, Moon, Sun, Monitor, 
   LogOut, Trash2, Edit, Save, X, Shield, Phone, 
-  Mail, Calendar, MapPin, Wallet, Star, Car 
+  Mail, Calendar, MapPin, Wallet, Star, Car, FileText, CheckCircle
 } from "lucide-react";
 
 const Profile = () => {
@@ -54,7 +55,13 @@ const Profile = () => {
 
       if (profileError) throw profileError;
       setProfile(profileData);
-      setEditData(profileData);
+      setEditData({
+        name: profileData.name || "",
+        phone: profileData.phone || "",
+        permanent_address: profileData.permanent_address || "",
+        aadhaar_number: profileData.aadhaar_number || "",
+        driving_license_number: profileData.driving_license_number || "",
+      });
 
       // Load rides (as driver)
       const { data: ridesData } = await supabase
@@ -99,12 +106,15 @@ const Profile = () => {
         .update({
           name: editData.name,
           phone: editData.phone,
+          permanent_address: editData.permanent_address,
+          aadhaar_number: editData.aadhaar_number,
+          driving_license_number: editData.driving_license_number,
         })
         .eq('id', user.id);
 
       if (error) throw error;
 
-      setProfile(editData);
+      setProfile({ ...profile, ...editData });
       setEditing(false);
       toast({
         title: "Profile updated",
@@ -142,7 +152,7 @@ const Profile = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="min-h-screen bg-background flex items-center justify-center animate-fade-in">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
           <p className="text-muted-foreground">Loading...</p>
@@ -157,7 +167,7 @@ const Profile = () => {
   const totalSpent = payments.filter(p => p.rider_id === user?.id && p.status === 'completed').reduce((sum, p) => sum + Number(p.amount), 0);
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background animate-fade-in">
       {/* Header */}
       <header className="bg-card border-b sticky top-0 z-10 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
@@ -171,7 +181,7 @@ const Profile = () => {
 
       <div className="max-w-7xl mx-auto px-4 py-6 space-y-6">
         {/* Profile Header Card */}
-        <Card>
+        <Card className="hover-scale">
           <CardContent className="pt-6">
             <div className="flex items-start gap-4">
               <Avatar className="h-20 w-20">
@@ -183,29 +193,70 @@ const Profile = () => {
               
               <div className="flex-1">
                 {editing ? (
-                  <div className="space-y-3">
-                    <div>
-                      <Label htmlFor="name">Name</Label>
-                      <Input
-                        id="name"
-                        value={editData.name}
-                        onChange={(e) => setEditData({ ...editData, name: e.target.value })}
-                      />
+                  <div className="space-y-4">
+                    <div className="grid md:grid-cols-2 gap-4">
+                      <div>
+                        <Label htmlFor="name">Full Name</Label>
+                        <Input
+                          id="name"
+                          value={editData.name}
+                          onChange={(e) => setEditData({ ...editData, name: e.target.value })}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="phone">Phone Number</Label>
+                        <Input
+                          id="phone"
+                          value={editData.phone}
+                          onChange={(e) => setEditData({ ...editData, phone: e.target.value })}
+                        />
+                      </div>
                     </div>
                     <div>
-                      <Label htmlFor="phone">Phone</Label>
-                      <Input
-                        id="phone"
-                        value={editData.phone}
-                        onChange={(e) => setEditData({ ...editData, phone: e.target.value })}
+                      <Label htmlFor="address">Permanent Address</Label>
+                      <Textarea
+                        id="address"
+                        value={editData.permanent_address}
+                        onChange={(e) => setEditData({ ...editData, permanent_address: e.target.value })}
+                        rows={2}
                       />
+                    </div>
+                    <Separator />
+                    <div className="space-y-4">
+                      <h3 className="font-semibold flex items-center gap-2">
+                        <Shield className="w-4 h-4" />
+                        KYC Documents
+                      </h3>
+                      <div className="grid md:grid-cols-2 gap-4">
+                        <div>
+                          <Label htmlFor="aadhaar">Aadhaar Number</Label>
+                          <Input
+                            id="aadhaar"
+                            value={editData.aadhaar_number}
+                            onChange={(e) => setEditData({ ...editData, aadhaar_number: e.target.value })}
+                            placeholder="XXXX-XXXX-XXXX"
+                            maxLength={12}
+                          />
+                          {profile.aadhaar_verified && <span className="text-xs text-success flex items-center gap-1 mt-1"><CheckCircle className="w-3 h-3" /> Verified</span>}
+                        </div>
+                        <div>
+                          <Label htmlFor="license">Driving License Number</Label>
+                          <Input
+                            id="license"
+                            value={editData.driving_license_number}
+                            onChange={(e) => setEditData({ ...editData, driving_license_number: e.target.value })}
+                            placeholder="DL-XXXXXXXXXX"
+                          />
+                          {profile.driving_license_verified && <span className="text-xs text-success flex items-center gap-1 mt-1"><CheckCircle className="w-3 h-3" /> Verified</span>}
+                        </div>
+                      </div>
                     </div>
                     <div className="flex gap-2">
                       <Button onClick={handleSave} size="sm">
                         <Save className="h-4 w-4 mr-2" />
-                        Save
+                        Save Changes
                       </Button>
-                      <Button onClick={() => { setEditing(false); setEditData(profile); }} variant="outline" size="sm">
+                      <Button onClick={() => { setEditing(false); setEditData({ name: profile.name, phone: profile.phone, permanent_address: profile.permanent_address, aadhaar_number: profile.aadhaar_number, driving_license_number: profile.driving_license_number }); }} variant="outline" size="sm">
                         <X className="h-4 w-4 mr-2" />
                         Cancel
                       </Button>
@@ -220,15 +271,21 @@ const Profile = () => {
                         {profile?.kyc_status}
                       </Badge>
                     </div>
-                    <div className="space-y-1 text-muted-foreground">
-                      <div className="flex items-center gap-2">
+                    <div className="space-y-2 text-sm">
+                      <div className="flex items-center gap-2 text-muted-foreground">
                         <Phone className="h-4 w-4" />
                         <span>{profile?.phone}</span>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 text-muted-foreground">
                         <Mail className="h-4 w-4" />
                         <span>{user?.email}</span>
                       </div>
+                      {profile?.permanent_address && (
+                        <div className="flex items-start gap-2 text-muted-foreground">
+                          <MapPin className="h-4 w-4 mt-0.5" />
+                          <span>{profile.permanent_address}</span>
+                        </div>
+                      )}
                     </div>
                     <Button onClick={() => setEditing(true)} variant="outline" size="sm" className="mt-3">
                       <Edit className="h-4 w-4 mr-2" />
@@ -243,7 +300,7 @@ const Profile = () => {
 
         {/* Stats Cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <Card>
+          <Card className="hover-scale">
             <CardContent className="pt-6 text-center">
               <Car className="h-8 w-8 mx-auto mb-2 text-primary" />
               <div className="text-2xl font-bold">{completedRides}</div>
@@ -251,7 +308,7 @@ const Profile = () => {
             </CardContent>
           </Card>
           
-          <Card>
+          <Card className="hover-scale">
             <CardContent className="pt-6 text-center">
               <MapPin className="h-8 w-8 mx-auto mb-2 text-primary" />
               <div className="text-2xl font-bold">{completedBookings}</div>
@@ -259,7 +316,7 @@ const Profile = () => {
             </CardContent>
           </Card>
           
-          <Card>
+          <Card className="hover-scale">
             <CardContent className="pt-6 text-center">
               <Wallet className="h-8 w-8 mx-auto mb-2 text-success" />
               <div className="text-2xl font-bold">₹{totalEarnings}</div>
@@ -267,7 +324,7 @@ const Profile = () => {
             </CardContent>
           </Card>
           
-          <Card>
+          <Card className="hover-scale">
             <CardContent className="pt-6 text-center">
               <Wallet className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
               <div className="text-2xl font-bold">₹{totalSpent}</div>
@@ -298,7 +355,7 @@ const Profile = () => {
                 ) : (
                   <div className="space-y-3">
                     {rides.slice(0, 5).map((ride) => (
-                      <div key={ride.id} className="flex items-center justify-between p-3 border rounded-lg">
+                      <div key={ride.id} className="flex items-center justify-between p-3 border rounded-lg transition-all hover:shadow-md">
                         <div className="flex-1">
                           <div className="font-medium">{ride.origin_address}</div>
                           <div className="text-sm text-muted-foreground">→ {ride.destination_address}</div>
@@ -330,7 +387,7 @@ const Profile = () => {
                 ) : (
                   <div className="space-y-3">
                     {payments.filter(p => p.driver_id === user?.id).slice(0, 5).map((payment) => (
-                      <div key={payment.id} className="flex items-center justify-between p-3 border rounded-lg">
+                      <div key={payment.id} className="flex items-center justify-between p-3 border rounded-lg transition-all hover:shadow-md">
                         <div className="flex-1">
                           <div className="font-medium">₹{payment.amount}</div>
                           <div className="text-sm text-muted-foreground">{payment.method}</div>
@@ -364,7 +421,7 @@ const Profile = () => {
                 ) : (
                   <div className="space-y-3">
                     {bookings.slice(0, 5).map((booking) => (
-                      <div key={booking.id} className="flex items-center justify-between p-3 border rounded-lg">
+                      <div key={booking.id} className="flex items-center justify-between p-3 border rounded-lg transition-all hover:shadow-md">
                         <div className="flex-1">
                           <div className="font-medium">{booking.pickup_address}</div>
                           <div className="text-sm text-muted-foreground">→ {booking.drop_address}</div>
@@ -396,7 +453,7 @@ const Profile = () => {
                 ) : (
                   <div className="space-y-3">
                     {payments.filter(p => p.rider_id === user?.id).slice(0, 5).map((payment) => (
-                      <div key={payment.id} className="flex items-center justify-between p-3 border rounded-lg">
+                      <div key={payment.id} className="flex items-center justify-between p-3 border rounded-lg transition-all hover:shadow-md">
                         <div className="flex-1">
                           <div className="font-medium">₹{payment.amount}</div>
                           <div className="text-sm text-muted-foreground">{payment.method}</div>
@@ -421,36 +478,36 @@ const Profile = () => {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Settings className="h-5 w-5" />
-              Settings
+              Quick Settings
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
               <Label className="text-base mb-3 block">Theme</Label>
-              <div className="flex gap-2">
+              <div className="grid grid-cols-3 gap-2">
                 <Button
                   variant={theme === 'light' ? 'default' : 'outline'}
                   onClick={() => setTheme('light')}
-                  className="flex-1"
+                  className="flex-col h-auto py-3"
                 >
-                  <Sun className="h-4 w-4 mr-2" />
-                  Light
+                  <Sun className="h-5 w-5 mb-1" />
+                  <span className="text-xs">Light</span>
                 </Button>
                 <Button
                   variant={theme === 'dark' ? 'default' : 'outline'}
                   onClick={() => setTheme('dark')}
-                  className="flex-1"
+                  className="flex-col h-auto py-3"
                 >
-                  <Moon className="h-4 w-4 mr-2" />
-                  Dark
+                  <Moon className="h-5 w-5 mb-1" />
+                  <span className="text-xs">Dark</span>
                 </Button>
                 <Button
                   variant={theme === 'system' ? 'default' : 'outline'}
                   onClick={() => setTheme('system')}
-                  className="flex-1"
+                  className="flex-col h-auto py-3"
                 >
-                  <Monitor className="h-4 w-4 mr-2" />
-                  System
+                  <Monitor className="h-5 w-5 mb-1" />
+                  <span className="text-xs">System</span>
                 </Button>
               </div>
             </div>
@@ -458,7 +515,11 @@ const Profile = () => {
             <Separator />
 
             <div className="space-y-2">
-              <Button variant="outline" className="w-full justify-start" onClick={handleLogout}>
+              <Button onClick={() => navigate("/settings")} variant="outline" className="w-full justify-start hover-scale">
+                <Settings className="h-4 w-4 mr-2" />
+                More Settings
+              </Button>
+              <Button onClick={handleLogout} variant="outline" className="w-full justify-start hover-scale">
                 <LogOut className="h-4 w-4 mr-2" />
                 Logout
               </Button>
@@ -474,12 +535,13 @@ const Profile = () => {
                   <AlertDialogHeader>
                     <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
                     <AlertDialogDescription>
-                      This action cannot be undone. This will permanently delete your account and remove your data from our servers.
+                      This action cannot be undone. This will permanently delete your
+                      account and remove your data from our servers.
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
                     <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction onClick={handleDeleteAccount} className="bg-destructive text-destructive-foreground">
+                    <AlertDialogAction onClick={handleDeleteAccount}>
                       Delete Account
                     </AlertDialogAction>
                   </AlertDialogFooter>

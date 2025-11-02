@@ -111,10 +111,13 @@ const Dashboard = () => {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <Button className="w-full" onClick={() => navigate('/search-rides')}>
-                  <MapPin className="w-4 h-4 mr-2" />
-                  Search Available Rides
-                </Button>
+              <Button 
+                className="w-full" 
+                onClick={() => navigate('/search-rides')}
+              >
+                <MapPin className="w-4 h-4 mr-2" />
+                Search Available Rides
+              </Button>
               </CardContent>
             </Card>
 
