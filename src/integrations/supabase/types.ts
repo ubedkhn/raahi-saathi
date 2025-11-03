@@ -599,6 +599,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_ride_participant: {
+        Args: { _ride_id: string; _user_id: string }
+        Returns: boolean
+      }
     }
     Enums: {
       app_role: "user" | "driver" | "admin"
