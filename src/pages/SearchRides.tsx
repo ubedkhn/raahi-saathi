@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Label } from "@/components/ui/label";
 import { ArrowLeft, Search, MapPin, Calendar, Users, Car } from "lucide-react";
 import { toast } from "sonner";
+import RideTrackingModal from "@/components/ride-tracking/RideTrackingModal";
 
 interface Ride {
   id: string;
@@ -36,6 +37,8 @@ const SearchRides = () => {
   const [loading, setLoading] = useState(false);
   const [rides, setRides] = useState<Ride[]>([]);
   const [user, setUser] = useState<any>(null);
+  const [activeBookingId, setActiveBookingId] = useState<string | null>(null);
+  const [showTracking, setShowTracking] = useState(false);
 
   useEffect(() => {
     checkUser();
@@ -108,9 +111,12 @@ const SearchRides = () => {
       const ride = rides.find(r => r.id === rideId);
       if (!ride) return;
 
-      // For simplicity, using the ride's coordinates as pickup/drop
-      // In a real app, these would be more specific
-      const { error } = await supabase.from("bookings").insert([{
+      // Calculate fare
+      const calculatedFare = ride.total_distance_km 
+        ? Number(ride.total_distance_km) * Number(ride.price_per_km)
+        : 0;
+
+      const { data: bookingData, error } = await supabase.from("bookings").insert([{
         ride_id: rideId,
         rider_id: user.id,
         pickup_address: origin || ride.origin_address,
@@ -119,15 +125,31 @@ const SearchRides = () => {
         drop_address: destination || ride.destination_address,
         drop_lat: 0,
         drop_lng: 0,
-        fare_amount: ride.price_per_km * (ride.total_distance_km || 10),
+        fare_amount: calculatedFare,
         status: "pending",
-      }]);
+      }]).select().single();
 
       if (error) throw error;
 
-      toast.success("Booking request sent!", {
-        description: "The driver will be notified.",
+      toast.success("Ride booked successfully!", {
+        description: "Waiting for driver to accept...",
       });
+      
+      // Set booking ID for tracking
+      setActiveBookingId(bookingData.id);
+      
+      // Simulate driver accepting after 2 seconds (in real app, driver would accept)
+      setTimeout(async () => {
+        await supabase
+          .from('bookings')
+          .update({ status: 'accepted' })
+          .eq('id', bookingData.id);
+        
+        setShowTracking(true);
+        toast.success("Driver accepted your ride!", {
+          description: "Track your driver in real-time",
+        });
+      }, 2000);
       
       // Refresh search
       handleSearch(new Event("submit") as any);
@@ -277,6 +299,18 @@ const SearchRides = () => {
           </div>
         )}
       </div>
+
+      {/* Ride Tracking Modal */}
+      {activeBookingId && (
+        <RideTrackingModal
+          bookingId={activeBookingId}
+          isOpen={showTracking}
+          onClose={() => {
+            setShowTracking(false);
+            setActiveBookingId(null);
+          }}
+        />
+      )}
     </div>
   );
 };

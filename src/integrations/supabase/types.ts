@@ -41,45 +41,69 @@ export type Database = {
       bookings: {
         Row: {
           created_at: string | null
+          distance_remaining: number | null
+          driver_current_lat: number | null
+          driver_current_lng: number | null
           drop_address: string
           drop_lat: number
           drop_lng: number
+          estimated_arrival_time: number | null
           fare_amount: number
           id: string
+          otp: string | null
+          otp_verified: boolean | null
           pickup_address: string
           pickup_lat: number
           pickup_lng: number
           ride_id: string
+          rider_current_lat: number | null
+          rider_current_lng: number | null
           rider_id: string
           status: Database["public"]["Enums"]["booking_status"] | null
           updated_at: string | null
         }
         Insert: {
           created_at?: string | null
+          distance_remaining?: number | null
+          driver_current_lat?: number | null
+          driver_current_lng?: number | null
           drop_address: string
           drop_lat: number
           drop_lng: number
+          estimated_arrival_time?: number | null
           fare_amount: number
           id?: string
+          otp?: string | null
+          otp_verified?: boolean | null
           pickup_address: string
           pickup_lat: number
           pickup_lng: number
           ride_id: string
+          rider_current_lat?: number | null
+          rider_current_lng?: number | null
           rider_id: string
           status?: Database["public"]["Enums"]["booking_status"] | null
           updated_at?: string | null
         }
         Update: {
           created_at?: string | null
+          distance_remaining?: number | null
+          driver_current_lat?: number | null
+          driver_current_lng?: number | null
           drop_address?: string
           drop_lat?: number
           drop_lng?: number
+          estimated_arrival_time?: number | null
           fare_amount?: number
           id?: string
+          otp?: string | null
+          otp_verified?: boolean | null
           pickup_address?: string
           pickup_lat?: number
           pickup_lng?: number
           ride_id?: string
+          rider_current_lat?: number | null
+          rider_current_lng?: number | null
           rider_id?: string
           status?: Database["public"]["Enums"]["booking_status"] | null
           updated_at?: string | null
@@ -567,6 +591,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      generate_booking_otp: { Args: never; Returns: string }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -583,6 +608,10 @@ export type Database = {
         | "started"
         | "completed"
         | "cancelled"
+        | "accepted"
+        | "driver_arriving"
+        | "driver_arrived"
+        | "in_progress"
       gender: "male" | "female" | "other"
       kyc_status: "pending" | "verified" | "rejected"
       payment_method: "upi" | "card" | "wallet" | "cash"
@@ -724,6 +753,10 @@ export const Constants = {
         "started",
         "completed",
         "cancelled",
+        "accepted",
+        "driver_arriving",
+        "driver_arrived",
+        "in_progress",
       ],
       gender: ["male", "female", "other"],
       kyc_status: ["pending", "verified", "rejected"],
