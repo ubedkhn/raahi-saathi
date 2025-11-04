@@ -13,6 +13,9 @@ import Admin from "./pages/Admin";
 import SearchRides from "./pages/SearchRides";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
+import SOS from "./pages/SOS";
+import RecentRides from "./pages/RecentRides";
+import PostRide from "./pages/PostRide";
 
 const queryClient = new QueryClient();
 
@@ -32,6 +35,9 @@ const App = () => (
             <Route path="/admin" element={<Admin />} />
             <Route path="/search-rides" element={<SearchRides />} />
             <Route path="/settings" element={<Settings />} />
+            <Route path="/sos" element={<SOS />} />
+            <Route path="/recent-rides" element={<RecentRides />} />
+            <Route path="/post-ride" element={<PostRide />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

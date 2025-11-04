@@ -10,6 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { ArrowLeft, Key, HelpCircle, Mail, Info, Shield } from "lucide-react";
 import { toast } from "sonner";
+import BottomNav from "@/components/BottomNav";
 
 const Settings = () => {
   const navigate = useNavigate();
@@ -94,7 +95,7 @@ const Settings = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background p-4 animate-fade-in">
+    <div className="min-h-screen bg-background p-4 animate-fade-in pb-20">
       <div className="max-w-4xl mx-auto space-y-6">
         <Button
           variant="ghost"
@@ -337,6 +338,8 @@ const Settings = () => {
           </TabsContent>
         </Tabs>
       </div>
+
+      <BottomNav />
     </div>
   );
 };

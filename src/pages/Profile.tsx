@@ -18,6 +18,7 @@ import {
   LogOut, Trash2, Edit, Save, X, Shield, Phone, 
   Mail, Calendar, MapPin, Wallet, Star, Car, FileText, CheckCircle
 } from "lucide-react";
+import BottomNav from "@/components/BottomNav";
 
 const Profile = () => {
   const navigate = useNavigate();
@@ -167,7 +168,7 @@ const Profile = () => {
   const totalSpent = payments.filter(p => p.rider_id === user?.id && p.status === 'completed').reduce((sum, p) => sum + Number(p.amount), 0);
 
   return (
-    <div className="min-h-screen bg-background animate-fade-in">
+    <div className="min-h-screen bg-background animate-fade-in pb-20">
       {/* Header */}
       <header className="bg-card border-b sticky top-0 z-10 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
@@ -551,6 +552,8 @@ const Profile = () => {
           </CardContent>
         </Card>
       </div>
+
+      <BottomNav />
     </div>
   );
 };

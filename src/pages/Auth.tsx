@@ -27,7 +27,7 @@ const signupSchema = z.object({
     .regex(/^[a-zA-Z\s'-]+$/, 'Name can only contain letters, spaces, hyphens, and apostrophes'),
   phone: z.string()
     .trim()
-    .regex(/^\+?[1-9]\d{9,14}$/, 'Invalid phone number format (e.g., +919876543210)'),
+    .regex(/^\+91[0-9]{10}$/, 'Phone must be +91 followed by exactly 10 digits (e.g., +919876543210)'),
   email: z.string()
     .trim()
     .email('Invalid email address')

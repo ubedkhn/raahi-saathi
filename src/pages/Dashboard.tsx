@@ -7,6 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { User, Car, MapPin, Plus, Shield, LogOut, Menu } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import BottomNav from "@/components/BottomNav";
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -67,7 +68,7 @@ const Dashboard = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background pb-20">
       {/* Header */}
       <header className="bg-card border-b sticky top-0 z-10 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
@@ -87,7 +88,7 @@ const Dashboard = () => {
       <div className="max-w-7xl mx-auto px-4 py-8">
         <div className="mb-8">
           <h2 className="text-3xl font-bold mb-2">Welcome, {profile?.name}!</h2>
-          <p className="text-muted-foreground">What would you like to do today?</p>
+          <p className="text-muted-foreground">Where would you like to go today?</p>
         </div>
 
         <Tabs defaultValue="find" className="space-y-6">
@@ -217,6 +218,8 @@ const Dashboard = () => {
           </Card>
         </div>
       </div>
+
+      <BottomNav />
     </div>
   );
 };

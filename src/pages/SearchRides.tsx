@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { ArrowLeft, Search, MapPin, Calendar, Users, Car } from "lucide-react";
 import { toast } from "sonner";
 import RideTrackingModal from "@/components/ride-tracking/RideTrackingModal";
+import BottomNav from "@/components/BottomNav";
 
 interface Ride {
   id: string;
@@ -162,7 +163,7 @@ const SearchRides = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background p-4 animate-fade-in">
+    <div className="min-h-screen bg-background p-4 animate-fade-in pb-20">
       <div className="max-w-4xl mx-auto space-y-6">
         <Button
           variant="ghost"
@@ -311,6 +312,8 @@ const SearchRides = () => {
           }}
         />
       )}
+
+      <BottomNav />
     </div>
   );
 };
