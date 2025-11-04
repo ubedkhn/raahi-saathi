@@ -52,17 +52,20 @@ const Profile = () => {
         .from('profiles')
         .select('*')
         .eq('id', session.user.id)
-        .single();
+        .maybeSingle();
 
       if (profileError) throw profileError;
-      setProfile(profileData);
-      setEditData({
-        name: profileData.name || "",
-        phone: profileData.phone || "",
-        permanent_address: profileData.permanent_address || "",
-        aadhaar_number: profileData.aadhaar_number || "",
-        driving_license_number: profileData.driving_license_number || "",
-      });
+      
+      if (profileData) {
+        setProfile(profileData);
+        setEditData({
+          name: profileData.name || "",
+          phone: profileData.phone || "",
+          permanent_address: profileData.permanent_address || "",
+          aadhaar_number: profileData.aadhaar_number || "",
+          driving_license_number: profileData.driving_license_number || "",
+        });
+      }
 
       // Load rides (as driver)
       const { data: ridesData } = await supabase
@@ -257,7 +260,16 @@ const Profile = () => {
                         <Save className="h-4 w-4 mr-2" />
                         Save Changes
                       </Button>
-                      <Button onClick={() => { setEditing(false); setEditData({ name: profile.name, phone: profile.phone, permanent_address: profile.permanent_address, aadhaar_number: profile.aadhaar_number, driving_license_number: profile.driving_license_number }); }} variant="outline" size="sm">
+                      <Button onClick={() => { 
+                        setEditing(false); 
+                        setEditData({ 
+                          name: profile?.name || "", 
+                          phone: profile?.phone || "", 
+                          permanent_address: profile?.permanent_address || "", 
+                          aadhaar_number: profile?.aadhaar_number || "", 
+                          driving_license_number: profile?.driving_license_number || "" 
+                        }); 
+                      }} variant="outline" size="sm">
                         <X className="h-4 w-4 mr-2" />
                         Cancel
                       </Button>

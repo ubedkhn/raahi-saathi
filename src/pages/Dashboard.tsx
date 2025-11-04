@@ -125,7 +125,7 @@ const Dashboard = () => {
             <Card>
               <CardHeader>
                 <CardTitle>Your Bookings</CardTitle>
-                <CardDescription>View your upcoming and past rides</CardDescription>
+                <CardDescription>View your upcoming rides</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="text-center py-8 text-muted-foreground">

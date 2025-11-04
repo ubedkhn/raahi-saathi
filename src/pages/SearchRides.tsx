@@ -35,6 +35,7 @@ const SearchRides = () => {
   const [origin, setOrigin] = useState("");
   const [destination, setDestination] = useState("");
   const [date, setDate] = useState("");
+  const [time, setTime] = useState("");
   const [loading, setLoading] = useState(false);
   const [rides, setRides] = useState<Ride[]>([]);
   const [user, setUser] = useState<any>(null);
@@ -74,7 +75,10 @@ const SearchRides = () => {
       if (destination) {
         query = query.ilike("destination_address", `%${destination}%`);
       }
-      if (date) {
+      if (date && time) {
+        query = query.gte("start_time", `${date}T${time}:00`)
+                     .lte("start_time", `${date}T23:59:59`);
+      } else if (date) {
         query = query.gte("start_time", `${date}T00:00:00`)
                      .lte("start_time", `${date}T23:59:59`);
       }
@@ -209,22 +213,52 @@ const SearchRides = () => {
                   />
                 </div>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="date">
-                  <Calendar className="inline w-4 h-4 mr-1" />
-                  Date
-                </Label>
-                <Input
-                  id="date"
-                  type="date"
-                  value={date}
-                  onChange={(e) => setDate(e.target.value)}
-                />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="date">
+                    <Calendar className="inline w-4 h-4 mr-1" />
+                    Date
+                  </Label>
+                  <Input
+                    id="date"
+                    type="date"
+                    value={date}
+                    onChange={(e) => setDate(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="time">
+                    <Calendar className="inline w-4 h-4 mr-1" />
+                    Time
+                  </Label>
+                  <Input
+                    id="time"
+                    type="time"
+                    value={time}
+                    onChange={(e) => setTime(e.target.value)}
+                  />
+                </div>
               </div>
-              <Button type="submit" className="w-full" disabled={loading}>
-                <Search className="mr-2 h-4 w-4" />
-                {loading ? "Searching..." : "Search Rides"}
-              </Button>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Button type="submit" className="w-full" disabled={loading}>
+                  <Search className="mr-2 h-4 w-4" />
+                  {loading ? "Searching..." : "Search Rides"}
+                </Button>
+                <Button 
+                  type="button" 
+                  className="w-full bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 shadow-lg" 
+                  onClick={() => {
+                    const now = new Date();
+                    setDate(now.toISOString().split('T')[0]);
+                    setTime(now.toTimeString().slice(0, 5));
+                    setTimeout(() => handleSearch(new Event("submit") as any), 100);
+                  }}
+                  disabled={loading}
+                >
+                  <MapPin className="mr-2 h-4 w-4" />
+                  Get Ride Immediately
+                </Button>
+              </div>
             </form>
           </CardContent>
         </Card>
