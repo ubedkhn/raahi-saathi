@@ -238,7 +238,7 @@ const Profile = () => {
                             placeholder="XXXX-XXXX-XXXX"
                             maxLength={12}
                           />
-                          {profile.aadhaar_verified && <span className="text-xs text-success flex items-center gap-1 mt-1"><CheckCircle className="w-3 h-3" /> Verified</span>}
+                          {profile?.aadhaar_verified && <span className="text-xs text-success flex items-center gap-1 mt-1"><CheckCircle className="w-3 h-3" /> Verified</span>}
                         </div>
                         <div>
                           <Label htmlFor="license">Driving License Number</Label>
@@ -248,7 +248,7 @@ const Profile = () => {
                             onChange={(e) => setEditData({ ...editData, driving_license_number: e.target.value })}
                             placeholder="DL-XXXXXXXXXX"
                           />
-                          {profile.driving_license_verified && <span className="text-xs text-success flex items-center gap-1 mt-1"><CheckCircle className="w-3 h-3" /> Verified</span>}
+                          {profile?.driving_license_verified && <span className="text-xs text-success flex items-center gap-1 mt-1"><CheckCircle className="w-3 h-3" /> Verified</span>}
                         </div>
                       </div>
                     </div>
