@@ -245,8 +245,8 @@ const SearchRides = () => {
                   {loading ? "Searching..." : "Search Rides"}
                 </Button>
                 <Button 
-                  type="button" 
-                  className="w-full bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 shadow-lg" 
+                  type="button"
+                  variant="action"
                   onClick={() => {
                     const now = new Date();
                     setDate(now.toISOString().split('T')[0]);
@@ -254,9 +254,9 @@ const SearchRides = () => {
                     setTimeout(() => handleSearch(new Event("submit") as any), 100);
                   }}
                   disabled={loading}
+                  className="w-full font-bold text-lg shadow-xl"
                 >
-                  <MapPin className="mr-2 h-4 w-4" />
-                  Get Ride Immediately
+                  🚀 Get Ride Immediately
                 </Button>
               </div>
             </form>

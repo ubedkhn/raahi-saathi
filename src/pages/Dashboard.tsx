@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { User, Car, MapPin, Plus, Shield, LogOut, Menu } from "lucide-react";
+import { User, Car, MapPin, Plus, Shield, LogOut, Menu, Search } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import BottomNav from "@/components/BottomNav";
 
@@ -111,14 +111,16 @@ const Dashboard = () => {
                   Find rides going your way and travel together
                 </CardDescription>
               </CardHeader>
-              <CardContent>
-              <Button 
-                className="w-full" 
-                onClick={() => navigate('/search-rides')}
-              >
-                <MapPin className="w-4 h-4 mr-2" />
-                Search Available Rides
-              </Button>
+              <CardContent className="space-y-4">
+                <Button
+                  size="lg"
+                  variant="find-ride"
+                  onClick={() => navigate('/search-rides')}
+                  className="w-full font-semibold"
+                >
+                  <Search className="mr-2 h-5 w-5" />
+                  Find a Ride
+                </Button>
               </CardContent>
             </Card>
 
@@ -144,21 +146,22 @@ const Dashboard = () => {
                   Share your journey and earn money
                 </CardDescription>
               </CardHeader>
-              <CardContent>
-                {profile?.kyc_status === 'verified' ? (
-                  <Button className="w-full" onClick={() => navigate('/post-ride')}>
-                    <Plus className="w-4 h-4 mr-2" />
-                    Create New Ride
-                  </Button>
-                ) : (
-                  <div className="text-center py-4">
-                    <Shield className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
-                    <p className="text-muted-foreground mb-4">
-                      Complete KYC verification to offer rides
+              <CardContent className="space-y-4">
+                <Button
+                  size="lg"
+                  variant="offer-ride"
+                  onClick={() => navigate('/post-ride')}
+                  className="w-full font-semibold"
+                >
+                  <Car className="mr-2 h-5 w-5" />
+                  Offer a Ride
+                </Button>
+                {profile?.kyc_status !== 'verified' && (
+                  <div className="text-center py-2">
+                    <Shield className="w-10 h-10 mx-auto mb-3 text-muted-foreground" />
+                    <p className="text-sm text-muted-foreground mb-3">
+                      Complete KYC verification to start offering rides
                     </p>
-                    <Button onClick={() => navigate('/profile')}>
-                      Complete Verification
-                    </Button>
                   </div>
                 )}
               </CardContent>

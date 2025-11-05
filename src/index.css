@@ -19,6 +19,11 @@ All colors MUST be HSL.
     --secondary-foreground: 0 0% 20%;
     --secondary-hover: 45 100% 45%;
     
+    /* Action colors - Orange/Red for immediate actions */
+    --action: 15 100% 55%;
+    --action-foreground: 0 0% 100%;
+    --action-hover: 15 100% 50%;
+    
     /* Neutral colors */
     --background: 0 0% 96%;
     --foreground: 0 0% 20%;
@@ -54,6 +59,9 @@ All colors MUST be HSL.
     /* Gradients */
     --gradient-hero: linear-gradient(135deg, hsl(174 100% 29%) 0%, hsl(174 100% 38%) 100%);
     --gradient-card: linear-gradient(180deg, hsl(0 0% 100%) 0%, hsl(0 0% 98%) 100%);
+    --gradient-action: linear-gradient(135deg, hsl(15 100% 55%) 0%, hsl(4 90% 50%) 100%);
+    --gradient-find-ride: linear-gradient(135deg, hsl(174 100% 35%) 0%, hsl(174 80% 45%) 100%);
+    --gradient-offer-ride: linear-gradient(135deg, hsl(260 80% 55%) 0%, hsl(280 70% 50%) 100%);
     
     /* Shadows */
     --shadow-sm: 0 1px 2px 0 hsl(0 0% 0% / 0.05);
@@ -82,6 +90,10 @@ All colors MUST be HSL.
     --secondary-foreground: 0 0% 10%;
     --secondary-hover: 45 100% 50%;
     
+    --action: 15 100% 60%;
+    --action-foreground: 0 0% 100%;
+    --action-hover: 15 100% 55%;
+    
     --background: 0 0% 10%;
     --foreground: 0 0% 95%;
     
@@ -109,6 +121,9 @@ All colors MUST be HSL.
     
     --gradient-hero: linear-gradient(135deg, hsl(174 100% 25%) 0%, hsl(174 100% 35%) 100%);
     --gradient-card: linear-gradient(180deg, hsl(0 0% 12%) 0%, hsl(0 0% 10%) 100%);
+    --gradient-action: linear-gradient(135deg, hsl(15 100% 60%) 0%, hsl(4 90% 55%) 100%);
+    --gradient-find-ride: linear-gradient(135deg, hsl(174 100% 30%) 0%, hsl(174 80% 40%) 100%);
+    --gradient-offer-ride: linear-gradient(135deg, hsl(260 80% 50%) 0%, hsl(280 70% 45%) 100%);
     
     --shadow-sm: 0 1px 2px 0 hsl(0 0% 0% / 0.3);
     --shadow-md: 0 4px 6px -1px hsl(0 0% 0% / 0.3);
@@ -160,6 +175,18 @@ All colors MUST be HSL.
   
   .gradient-card {
     background: var(--gradient-card);
+  }
+  
+  .gradient-action {
+    background: var(--gradient-action);
+  }
+  
+  .gradient-find-ride {
+    background: var(--gradient-find-ride);
+  }
+  
+  .gradient-offer-ride {
+    background: var(--gradient-offer-ride);
   }
   
   .shadow-primary {

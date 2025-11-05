@@ -7,6 +7,18 @@ const Landing = () => {
   const navigate = useNavigate();
   const [role, setRole] = useState<'rider' | 'driver'>('rider');
 
+  const handleGetStarted = () => {
+    navigate('/auth');
+  };
+
+  const handleRoleAction = () => {
+    if (role === 'rider') {
+      navigate('/search-rides');
+    } else {
+      navigate('/post-ride');
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background">
       {/* Hero Section */}
@@ -19,12 +31,12 @@ const Landing = () => {
             India's peer-to-peer ride sharing platform. Connect with travelers going your way.
           </p>
           
-          <div className="flex gap-4 justify-center mb-8">
+          <div className="flex flex-col sm:flex-row gap-4 justify-center mb-8">
             <Button 
               size="lg"
               variant={role === 'rider' ? 'secondary' : 'outline'}
               onClick={() => setRole('rider')}
-              className={role === 'rider' ? '' : 'bg-white/10 text-white border-white/30 hover:bg-white/20'}
+              className={role === 'rider' ? 'min-w-[200px]' : 'min-w-[200px] bg-white/10 text-white border-white/30 hover:bg-white/20'}
             >
               I Need a Ride
             </Button>
@@ -32,19 +44,30 @@ const Landing = () => {
               size="lg"
               variant={role === 'driver' ? 'secondary' : 'outline'}
               onClick={() => setRole('driver')}
-              className={role === 'driver' ? '' : 'bg-white/10 text-white border-white/30 hover:bg-white/20'}
+              className={role === 'driver' ? 'min-w-[200px]' : 'min-w-[200px] bg-white/10 text-white border-white/30 hover:bg-white/20'}
             >
               I'm Offering a Ride
             </Button>
           </div>
           
-          <Button 
-            size="lg"
-            onClick={() => navigate('/auth')}
-            className="bg-secondary hover:bg-secondary-hover text-secondary-foreground font-medium uppercase"
-          >
-            Get Started
-          </Button>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <Button 
+              size="lg"
+              variant="action"
+              onClick={handleRoleAction}
+              className="min-w-[200px] uppercase"
+            >
+              {role === 'rider' ? 'Find Rides Now' : 'Offer Ride'}
+            </Button>
+            
+            <Button 
+              size="lg"
+              onClick={handleGetStarted}
+              className="min-w-[200px] bg-secondary hover:bg-secondary-hover text-secondary-foreground font-medium uppercase"
+            >
+              Sign Up / Login
+            </Button>
+          </div>
         </div>
       </section>
 

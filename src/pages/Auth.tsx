@@ -219,7 +219,9 @@ const Auth = () => {
                     <Label htmlFor="login-email">Email</Label>
                     <Input
                       id="login-email"
+                      name="email"
                       type="email"
+                      autoComplete="email"
                       placeholder="you@example.com"
                       value={loginData.email}
                       onChange={(e) => {
@@ -239,7 +241,9 @@ const Auth = () => {
                     <Label htmlFor="login-password">Password</Label>
                     <Input
                       id="login-password"
+                      name="password"
                       type="password"
+                      autoComplete="current-password"
                       value={loginData.password}
                       onChange={(e) => {
                         setLoginData({ ...loginData, password: e.target.value });
