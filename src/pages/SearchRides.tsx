@@ -246,7 +246,6 @@ const SearchRides = () => {
                 </Button>
                 <Button 
                   type="button"
-                  variant="action"
                   onClick={() => {
                     const now = new Date();
                     setDate(now.toISOString().split('T')[0]);
@@ -254,7 +253,8 @@ const SearchRides = () => {
                     setTimeout(() => handleSearch(new Event("submit") as any), 100);
                   }}
                   disabled={loading}
-                  className="w-full font-bold text-lg shadow-xl"
+                  className="w-full bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white shadow-lg hover:shadow-xl transition-all uppercase font-semibold"
+                  size="lg"
                 >
                   🚀 Get Ride Immediately
                 </Button>

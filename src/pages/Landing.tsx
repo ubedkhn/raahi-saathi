@@ -5,18 +5,9 @@ import { Car, Shield, Users, MapPin, Clock, CreditCard } from "lucide-react";
 
 const Landing = () => {
   const navigate = useNavigate();
-  const [role, setRole] = useState<'rider' | 'driver'>('rider');
 
   const handleGetStarted = () => {
     navigate('/auth');
-  };
-
-  const handleRoleAction = () => {
-    if (role === 'rider') {
-      navigate('/search-rides');
-    } else {
-      navigate('/post-ride');
-    }
   };
 
   return (
@@ -31,41 +22,22 @@ const Landing = () => {
             India's peer-to-peer ride sharing platform. Connect with travelers going your way.
           </p>
           
-          <div className="flex flex-col sm:flex-row gap-4 justify-center mb-8">
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Button 
               size="lg"
-              variant={role === 'rider' ? 'secondary' : 'outline'}
-              onClick={() => setRole('rider')}
-              className={role === 'rider' ? 'min-w-[200px]' : 'min-w-[200px] bg-white/10 text-white border-white/30 hover:bg-white/20'}
+              variant="find-ride"
+              onClick={handleGetStarted}
+              className="min-w-[200px] uppercase font-semibold"
             >
               I Need a Ride
             </Button>
             <Button 
               size="lg"
-              variant={role === 'driver' ? 'secondary' : 'outline'}
-              onClick={() => setRole('driver')}
-              className={role === 'driver' ? 'min-w-[200px]' : 'min-w-[200px] bg-white/10 text-white border-white/30 hover:bg-white/20'}
+              variant="offer-ride"
+              onClick={handleGetStarted}
+              className="min-w-[200px] uppercase font-semibold"
             >
               I'm Offering a Ride
-            </Button>
-          </div>
-          
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Button 
-              size="lg"
-              variant="action"
-              onClick={handleRoleAction}
-              className="min-w-[200px] uppercase"
-            >
-              {role === 'rider' ? 'Find Rides Now' : 'Offer Ride'}
-            </Button>
-            
-            <Button 
-              size="lg"
-              onClick={handleGetStarted}
-              className="min-w-[200px] bg-secondary hover:bg-secondary-hover text-secondary-foreground font-medium uppercase"
-            >
-              Sign Up / Login
             </Button>
           </div>
         </div>
