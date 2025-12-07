@@ -45,6 +45,9 @@ const Auth = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [forgotEmailError, setForgotEmailError] = useState("");
   
   const [loginData, setLoginData] = useState({ email: "", password: "" });
   const [loginErrors, setLoginErrors] = useState<Record<string, string>>({});
@@ -105,6 +108,51 @@ const Auth = () => {
     } catch (error: any) {
       toast({
         title: "Login failed",
+        description: "An error occurred. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setForgotEmailError("");
+    
+    const emailSchema = z.string().trim().email('Invalid email address');
+    const result = emailSchema.safeParse(forgotEmail);
+    
+    if (!result.success) {
+      setForgotEmailError(result.error.errors[0].message);
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(result.data, {
+        redirectTo: `${window.location.origin}/auth?reset=true`,
+      });
+
+      if (error) {
+        toast({
+          title: "Error",
+          description: "Unable to send reset email. Please try again.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      toast({
+        title: "Reset email sent!",
+        description: "Check your inbox for a password reset link.",
+      });
+      setShowForgotPassword(false);
+      setForgotEmail("");
+    } catch (error) {
+      toast({
+        title: "Error",
         description: "An error occurred. Please try again.",
         variant: "destructive",
       });
@@ -212,6 +260,50 @@ const Auth = () => {
             <CardDescription>Join India's peer-to-peer ride sharing community</CardDescription>
           </CardHeader>
           <CardContent>
+            {showForgotPassword ? (
+              <div className="space-y-4">
+                <button
+                  type="button"
+                  onClick={() => setShowForgotPassword(false)}
+                  className="flex items-center text-sm text-muted-foreground hover:text-foreground"
+                >
+                  <ArrowLeft className="mr-1 h-4 w-4" />
+                  Back to login
+                </button>
+                <div className="space-y-2">
+                  <h3 className="text-lg font-semibold">Reset your password</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Enter your email and we'll send you a reset link.
+                  </p>
+                </div>
+                <form onSubmit={handleForgotPassword} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="forgot-email">Email</Label>
+                    <Input
+                      id="forgot-email"
+                      type="email"
+                      placeholder="you@example.com"
+                      value={forgotEmail}
+                      onChange={(e) => {
+                        setForgotEmail(e.target.value);
+                        if (forgotEmailError) setForgotEmailError("");
+                      }}
+                      className={forgotEmailError ? "border-destructive" : ""}
+                    />
+                    {forgotEmailError && (
+                      <p className="text-sm text-destructive">{forgotEmailError}</p>
+                    )}
+                  </div>
+                  <Button 
+                    type="submit" 
+                    className="w-full bg-primary hover:bg-primary-hover"
+                    disabled={loading}
+                  >
+                    {loading ? "Sending..." : "Send Reset Link"}
+                  </Button>
+                </form>
+              </div>
+            ) : (
             <Tabs defaultValue="login" className="w-full">
               <TabsList className="grid w-full grid-cols-2">
                 <TabsTrigger value="login">Login</TabsTrigger>
@@ -272,18 +364,27 @@ const Auth = () => {
                     )}
                   </div>
 
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id="login-age"
-                      checked={loginAgeConfirmed}
-                      onCheckedChange={(checked) => setLoginAgeConfirmed(checked === true)}
-                    />
-                    <Label htmlFor="login-age" className="text-sm font-normal cursor-pointer">
-                      I confirm that I am 18 years or older
-                    </Label>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="login-age"
+                        checked={loginAgeConfirmed}
+                        onCheckedChange={(checked) => setLoginAgeConfirmed(checked === true)}
+                      />
+                      <Label htmlFor="login-age" className="text-sm font-normal cursor-pointer">
+                        I am 18 or older
+                      </Label>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowForgotPassword(true)}
+                      className="text-sm text-primary hover:underline"
+                    >
+                      Forgot password?
+                    </button>
                   </div>
                   
-                  <Button 
+                  <Button
                     type="submit" 
                     className="w-full bg-primary hover:bg-primary-hover"
                     disabled={loading || !loginAgeConfirmed}
@@ -391,7 +492,7 @@ const Auth = () => {
                       onCheckedChange={(checked) => setSignupAgeConfirmed(checked === true)}
                     />
                     <Label htmlFor="signup-age" className="text-sm font-normal cursor-pointer">
-                      I confirm that I am 18 years or older
+                      I am 18 or older
                     </Label>
                   </div>
                   
@@ -405,6 +506,7 @@ const Auth = () => {
                 </form>
               </TabsContent>
             </Tabs>
+            )}
           </CardContent>
         </Card>
       </div>
