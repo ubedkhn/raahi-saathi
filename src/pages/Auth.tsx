@@ -7,7 +7,8 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowLeft } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { ArrowLeft, Eye, EyeOff } from "lucide-react";
 import { z } from "zod";
 
 const loginSchema = z.object({
@@ -47,6 +48,8 @@ const Auth = () => {
   
   const [loginData, setLoginData] = useState({ email: "", password: "" });
   const [loginErrors, setLoginErrors] = useState<Record<string, string>>({});
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
+  const [loginAgeConfirmed, setLoginAgeConfirmed] = useState(false);
   
   const [signupData, setSignupData] = useState({ 
     name: "", 
@@ -55,6 +58,8 @@ const Auth = () => {
     password: "" 
   });
   const [signupErrors, setSignupErrors] = useState<Record<string, string>>({});
+  const [showSignupPassword, setShowSignupPassword] = useState(false);
+  const [signupAgeConfirmed, setSignupAgeConfirmed] = useState(false);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -239,29 +244,49 @@ const Auth = () => {
                   
                   <div className="space-y-2">
                     <Label htmlFor="login-password">Password</Label>
-                    <Input
-                      id="login-password"
-                      name="password"
-                      type="password"
-                      autoComplete="current-password"
-                      value={loginData.password}
-                      onChange={(e) => {
-                        setLoginData({ ...loginData, password: e.target.value });
-                        if (loginErrors.password) {
-                          setLoginErrors({ ...loginErrors, password: "" });
-                        }
-                      }}
-                      className={loginErrors.password ? "border-destructive" : ""}
-                    />
+                    <div className="relative">
+                      <Input
+                        id="login-password"
+                        name="password"
+                        type={showLoginPassword ? "text" : "password"}
+                        autoComplete="current-password"
+                        value={loginData.password}
+                        onChange={(e) => {
+                          setLoginData({ ...loginData, password: e.target.value });
+                          if (loginErrors.password) {
+                            setLoginErrors({ ...loginErrors, password: "" });
+                          }
+                        }}
+                        className={loginErrors.password ? "border-destructive pr-10" : "pr-10"}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowLoginPassword(!showLoginPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                      >
+                        {showLoginPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
                     {loginErrors.password && (
                       <p className="text-sm text-destructive">{loginErrors.password}</p>
                     )}
+                  </div>
+
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="login-age"
+                      checked={loginAgeConfirmed}
+                      onCheckedChange={(checked) => setLoginAgeConfirmed(checked === true)}
+                    />
+                    <Label htmlFor="login-age" className="text-sm font-normal cursor-pointer">
+                      I confirm that I am 18 years or older
+                    </Label>
                   </div>
                   
                   <Button 
                     type="submit" 
                     className="w-full bg-primary hover:bg-primary-hover"
-                    disabled={loading}
+                    disabled={loading || !loginAgeConfirmed}
                   >
                     {loading ? "Signing in..." : "Sign In"}
                   </Button>
@@ -332,28 +357,48 @@ const Auth = () => {
                   
                   <div className="space-y-2">
                     <Label htmlFor="signup-password">Password</Label>
-                    <Input
-                      id="signup-password"
-                      type="password"
-                      placeholder="Min. 8 chars with upper, lower, number & symbol"
-                      value={signupData.password}
-                      onChange={(e) => {
-                        setSignupData({ ...signupData, password: e.target.value });
-                        if (signupErrors.password) {
-                          setSignupErrors({ ...signupErrors, password: "" });
-                        }
-                      }}
-                      className={signupErrors.password ? "border-destructive" : ""}
-                    />
+                    <div className="relative">
+                      <Input
+                        id="signup-password"
+                        type={showSignupPassword ? "text" : "password"}
+                        placeholder="Min. 8 chars with upper, lower, number & symbol"
+                        value={signupData.password}
+                        onChange={(e) => {
+                          setSignupData({ ...signupData, password: e.target.value });
+                          if (signupErrors.password) {
+                            setSignupErrors({ ...signupErrors, password: "" });
+                          }
+                        }}
+                        className={signupErrors.password ? "border-destructive pr-10" : "pr-10"}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowSignupPassword(!showSignupPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                      >
+                        {showSignupPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
                     {signupErrors.password && (
                       <p className="text-sm text-destructive">{signupErrors.password}</p>
                     )}
+                  </div>
+
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="signup-age"
+                      checked={signupAgeConfirmed}
+                      onCheckedChange={(checked) => setSignupAgeConfirmed(checked === true)}
+                    />
+                    <Label htmlFor="signup-age" className="text-sm font-normal cursor-pointer">
+                      I confirm that I am 18 years or older
+                    </Label>
                   </div>
                   
                   <Button 
                     type="submit" 
                     className="w-full bg-primary hover:bg-primary-hover"
-                    disabled={loading}
+                    disabled={loading || !signupAgeConfirmed}
                   >
                     {loading ? "Creating account..." : "Create Account"}
                   </Button>
