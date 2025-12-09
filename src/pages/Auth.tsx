@@ -86,22 +86,32 @@ const Auth = () => {
   const [showSignupPassword, setShowSignupPassword] = useState(false);
   const [signupAgeConfirmed, setSignupAgeConfirmed] = useState(false);
 
-  // Check for password reset mode
+  // Check for password reset mode and handle auth state
   useEffect(() => {
     const reset = searchParams.get('reset');
     if (reset === 'true') {
       setIsResetMode(true);
     }
     
-    // Listen for auth state changes (for password recovery)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+    // Listen for auth state changes (for password recovery and OAuth)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'PASSWORD_RECOVERY') {
         setIsResetMode(true);
+      }
+      if (event === 'SIGNED_IN' && session) {
+        navigate('/dashboard');
+      }
+    });
+
+    // Check if already logged in
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        navigate('/dashboard');
       }
     });
 
     return () => subscription.unsubscribe();
-  }, [searchParams]);
+  }, [searchParams, navigate]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -255,7 +265,7 @@ const Auth = () => {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/dashboard`,
+          redirectTo: window.location.origin,
         },
       });
 
