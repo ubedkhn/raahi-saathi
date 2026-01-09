@@ -14,11 +14,10 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { useToast } from "@/hooks/use-toast";
 import { useTheme } from "next-themes";
 import { 
-  ArrowLeft, User, Settings, Moon, Sun, Monitor, 
+  User, Settings, Moon, Sun, Monitor, 
   LogOut, Trash2, Edit, Save, X, Shield, Phone, 
   Mail, Calendar, MapPin, Wallet, Star, Car, FileText, CheckCircle
 } from "lucide-react";
-import BottomNav from "@/components/BottomNav";
 
 const Profile = () => {
   const navigate = useNavigate();
@@ -171,19 +170,7 @@ const Profile = () => {
   const totalSpent = payments.filter(p => p.rider_id === user?.id && p.status === 'completed').reduce((sum, p) => sum + Number(p.amount), 0);
 
   return (
-    <div className="min-h-screen bg-background animate-fade-in pb-20">
-      {/* Header */}
-      <header className="bg-card border-b sticky top-0 z-10 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
-          <Button variant="ghost" size="icon" onClick={() => navigate('/dashboard')}>
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-          <h1 className="text-xl font-bold">Profile</h1>
-          <div className="w-10" />
-        </div>
-      </header>
-
-      <div className="max-w-7xl mx-auto px-4 py-6 space-y-6">
+    <div className="max-w-7xl mx-auto px-4 py-6 space-y-6 animate-fade-in">
         {/* Profile Header Card */}
         <Card className="hover-scale">
           <CardContent className="pt-6">
@@ -563,9 +550,6 @@ const Profile = () => {
             </div>
           </CardContent>
         </Card>
-      </div>
-
-      <BottomNav />
     </div>
   );
 };
