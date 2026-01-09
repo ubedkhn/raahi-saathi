@@ -5,8 +5,17 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Shield, Upload, CheckCircle, AlertCircle, Car } from "lucide-react";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Shield, Upload, CheckCircle, AlertCircle, Car, MapPin, Calendar, Clock, Users, IndianRupee, Bike } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+
+interface Vehicle {
+  id: string;
+  brand: string;
+  model: string;
+  registration_no: string;
+  type: '2wheeler' | '4wheeler';
+}
 
 const PostRide = () => {
   const navigate = useNavigate();
@@ -14,12 +23,25 @@ const PostRide = () => {
   const [user, setUser] = useState<any>(null);
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  
+  // KYC form states
   const [aadhaarNumber, setAadhaarNumber] = useState("");
   const [drivingLicenseFile, setDrivingLicenseFile] = useState<File | null>(null);
   const [vehicleRegFile, setVehicleRegFile] = useState<File | null>(null);
   const [vehiclePhotoFile, setVehiclePhotoFile] = useState<File | null>(null);
   const [platePlotoFile, setPlatePlotoFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
+
+  // Ride form states
+  const [origin, setOrigin] = useState("");
+  const [destination, setDestination] = useState("");
+  const [date, setDate] = useState("");
+  const [time, setTime] = useState("");
+  const [selectedVehicle, setSelectedVehicle] = useState("");
+  const [seatsAvailable, setSeatsAvailable] = useState(1);
+  const [pricePerKm, setPricePerKm] = useState("");
+  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     checkUser();
@@ -47,6 +69,17 @@ const PostRide = () => {
       if (profileData) {
         setProfile(profileData);
         setAadhaarNumber(profileData.aadhaar_number || "");
+      }
+
+      // Fetch user's verified vehicles
+      const { data: vehiclesData } = await supabase
+        .from('vehicles')
+        .select('id, brand, model, registration_no, type')
+        .eq('user_id', session.user.id)
+        .eq('verified', true);
+
+      if (vehiclesData) {
+        setVehicles(vehiclesData as Vehicle[]);
       }
     } catch (error: any) {
       console.error('Error:', error);
@@ -175,6 +208,128 @@ const PostRide = () => {
     }
   };
 
+  const handlePostRide = async () => {
+    // Validation
+    if (!origin.trim() || origin.length < 3) {
+      toast({
+        title: "Invalid Origin",
+        description: "Please enter a valid pickup location (min 3 characters)",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!destination.trim() || destination.length < 3) {
+      toast({
+        title: "Invalid Destination",
+        description: "Please enter a valid destination (min 3 characters)",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!date) {
+      toast({
+        title: "Date Required",
+        description: "Please select a date for your ride",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!time) {
+      toast({
+        title: "Time Required",
+        description: "Please select a time for your ride",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!selectedVehicle) {
+      toast({
+        title: "Vehicle Required",
+        description: "Please select a vehicle for this ride",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!pricePerKm || parseFloat(pricePerKm) < 1) {
+      toast({
+        title: "Invalid Price",
+        description: "Please enter a valid price per kilometer (min ₹1)",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validate date is today or future
+    const selectedDate = new Date(`${date}T${time}`);
+    if (selectedDate < new Date()) {
+      toast({
+        title: "Invalid Date/Time",
+        description: "Please select a future date and time",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setSubmitting(true);
+
+    try {
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      if (!currentUser) throw new Error("Not authenticated");
+
+      // Combine date + time into ISO timestamp
+      const startTime = new Date(`${date}T${time}`).toISOString();
+
+      // For MVP: Use placeholder coordinates (0,0)
+      // Later: Integrate geocoding API
+      const { error } = await supabase
+        .from('rides')
+        .insert({
+          driver_id: currentUser.id,
+          vehicle_id: selectedVehicle,
+          origin_address: origin.trim(),
+          destination_address: destination.trim(),
+          origin_lat: 0,
+          origin_lng: 0,
+          destination_lat: 0,
+          destination_lng: 0,
+          start_time: startTime,
+          seats_available: seatsAvailable,
+          price_per_km: parseFloat(pricePerKm),
+          status: 'scheduled'
+        });
+
+      if (error) throw error;
+
+      toast({
+        title: "Ride Posted Successfully! 🎉",
+        description: "Riders can now find and book your ride.",
+      });
+
+      navigate('/dashboard');
+
+    } catch (error: any) {
+      toast({
+        title: "Failed to post ride",
+        description: error.message || "Something went wrong",
+        variant: "destructive",
+      });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // Get today's date in YYYY-MM-DD format for min date
+  const today = new Date().toISOString().split('T')[0];
+
+  // Get selected vehicle type for seat options
+  const selectedVehicleData = vehicles.find(v => v.id === selectedVehicle);
+  const maxSeats = selectedVehicleData?.type === '2wheeler' ? 1 : 4;
+
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -189,17 +344,206 @@ const PostRide = () => {
   return (
     <div className="max-w-3xl mx-auto px-4 py-8">
       {profile?.kyc_status === 'verified' ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>Create New Ride</CardTitle>
+        <Card className="shadow-lg">
+          <CardHeader className="bg-gradient-to-r from-primary/10 to-secondary/10">
+            <CardTitle className="flex items-center gap-2">
+              <Car className="w-6 h-6 text-primary" />
+              Create New Ride
+            </CardTitle>
             <CardDescription>Share your journey and earn money</CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="text-center py-8 text-muted-foreground">
-              <CheckCircle className="w-16 h-16 mx-auto mb-4 text-success" />
-              <p className="text-lg font-semibold text-foreground mb-2">KYC Verified!</p>
-              <p>Ride posting functionality coming soon...</p>
-            </div>
+          <CardContent className="space-y-6 pt-6">
+            {vehicles.length === 0 ? (
+              // No verified vehicles message
+              <div className="text-center py-8">
+                <AlertCircle className="w-16 h-16 mx-auto mb-4 text-warning" />
+                <p className="text-lg font-semibold text-foreground mb-2">No Verified Vehicles</p>
+                <p className="text-muted-foreground mb-6">
+                  You don't have any verified vehicles yet. Please add a vehicle from your Profile to post rides.
+                </p>
+                <Button 
+                  variant="action" 
+                  onClick={() => navigate('/profile')}
+                  className="min-h-[44px]"
+                >
+                  Go to Profile
+                </Button>
+              </div>
+            ) : (
+              // Ride creation form
+              <>
+                {/* Origin & Destination */}
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="origin" className="text-base font-semibold flex items-center gap-2">
+                      <MapPin className="w-4 h-4 text-primary" />
+                      From *
+                    </Label>
+                    <Input
+                      id="origin"
+                      type="text"
+                      placeholder="Enter pickup location"
+                      value={origin}
+                      onChange={(e) => setOrigin(e.target.value)}
+                      className="min-h-[44px]"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="destination" className="text-base font-semibold flex items-center gap-2">
+                      <MapPin className="w-4 h-4 text-destructive" />
+                      To *
+                    </Label>
+                    <Input
+                      id="destination"
+                      type="text"
+                      placeholder="Enter destination"
+                      value={destination}
+                      onChange={(e) => setDestination(e.target.value)}
+                      className="min-h-[44px]"
+                    />
+                  </div>
+                </div>
+
+                {/* Date & Time */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="date" className="text-base font-semibold flex items-center gap-2">
+                      <Calendar className="w-4 h-4 text-primary" />
+                      Date *
+                    </Label>
+                    <Input
+                      id="date"
+                      type="date"
+                      min={today}
+                      value={date}
+                      onChange={(e) => setDate(e.target.value)}
+                      className="min-h-[44px]"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="time" className="text-base font-semibold flex items-center gap-2">
+                      <Clock className="w-4 h-4 text-primary" />
+                      Time *
+                    </Label>
+                    <Input
+                      id="time"
+                      type="time"
+                      value={time}
+                      onChange={(e) => setTime(e.target.value)}
+                      className="min-h-[44px]"
+                    />
+                  </div>
+                </div>
+
+                {/* Vehicle Selection */}
+                <div className="space-y-3">
+                  <Label className="text-base font-semibold flex items-center gap-2">
+                    <Car className="w-4 h-4 text-primary" />
+                    Select Vehicle *
+                  </Label>
+                  <RadioGroup
+                    value={selectedVehicle}
+                    onValueChange={(value) => {
+                      setSelectedVehicle(value);
+                      // Reset seats if switching to bike
+                      const vehicle = vehicles.find(v => v.id === value);
+                      if (vehicle?.type === '2wheeler') {
+                        setSeatsAvailable(1);
+                      }
+                    }}
+                    className="space-y-2"
+                  >
+                    {vehicles.map((vehicle) => (
+                      <div
+                        key={vehicle.id}
+                        className={`flex items-center space-x-3 p-4 rounded-lg border-2 transition-colors ${
+                          selectedVehicle === vehicle.id
+                            ? 'border-primary bg-primary/5'
+                            : 'border-border bg-background'
+                        }`}
+                      >
+                        <RadioGroupItem value={vehicle.id} id={vehicle.id} />
+                        <Label
+                          htmlFor={vehicle.id}
+                          className="flex-1 cursor-pointer flex items-center gap-3"
+                        >
+                          {vehicle.type === '2wheeler' ? (
+                            <Bike className="w-5 h-5 text-muted-foreground" />
+                          ) : (
+                            <Car className="w-5 h-5 text-muted-foreground" />
+                          )}
+                          <div>
+                            <p className="font-medium">
+                              {vehicle.brand} {vehicle.model}
+                            </p>
+                            <p className="text-sm text-muted-foreground">
+                              {vehicle.registration_no} • {vehicle.type === '2wheeler' ? 'Bike' : 'Car'}
+                            </p>
+                          </div>
+                        </Label>
+                      </div>
+                    ))}
+                  </RadioGroup>
+                </div>
+
+                {/* Available Seats */}
+                {selectedVehicleData?.type !== '2wheeler' && (
+                  <div className="space-y-3">
+                    <Label className="text-base font-semibold flex items-center gap-2">
+                      <Users className="w-4 h-4 text-primary" />
+                      Available Seats *
+                    </Label>
+                    <div className="flex gap-2">
+                      {[1, 2, 3, 4].map((num) => (
+                        <Button
+                          key={num}
+                          type="button"
+                          variant={seatsAvailable === num ? "default" : "outline"}
+                          onClick={() => setSeatsAvailable(num)}
+                          disabled={num > maxSeats}
+                          className="flex-1 min-h-[44px]"
+                        >
+                          {num}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Price per KM */}
+                <div className="space-y-2">
+                  <Label htmlFor="price" className="text-base font-semibold flex items-center gap-2">
+                    <IndianRupee className="w-4 h-4 text-primary" />
+                    Price per KM (₹) *
+                  </Label>
+                  <Input
+                    id="price"
+                    type="number"
+                    min="1"
+                    step="0.5"
+                    placeholder="Enter price per kilometer"
+                    value={pricePerKm}
+                    onChange={(e) => setPricePerKm(e.target.value)}
+                    className="min-h-[44px]"
+                  />
+                  <p className="text-sm text-muted-foreground">
+                    Suggested: ₹6-7/km for bikes, ₹10-12/km for cars
+                  </p>
+                </div>
+
+                {/* Submit Button */}
+                <Button
+                  variant="action"
+                  onClick={handlePostRide}
+                  disabled={submitting || !origin || !destination || !date || !time || !selectedVehicle || !pricePerKm}
+                  className="w-full text-lg h-14 font-bold shadow-xl min-h-[56px]"
+                >
+                  {submitting ? "Posting Ride..." : "🚀 Post Ride"}
+                </Button>
+              </>
+            )}
           </CardContent>
         </Card>
       ) : profile?.kyc_status === 'pending' ? (
