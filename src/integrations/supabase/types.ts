@@ -328,6 +328,7 @@ export type Database = {
           phone: string
           role: Database["public"]["Enums"]["app_role"]
           selfie_url: string | null
+          status: string | null
           updated_at: string | null
         }
         Insert: {
@@ -348,6 +349,7 @@ export type Database = {
           phone: string
           role?: Database["public"]["Enums"]["app_role"]
           selfie_url?: string | null
+          status?: string | null
           updated_at?: string | null
         }
         Update: {
@@ -368,6 +370,7 @@ export type Database = {
           phone?: string
           role?: Database["public"]["Enums"]["app_role"]
           selfie_url?: string | null
+          status?: string | null
           updated_at?: string | null
         }
         Relationships: []
@@ -516,6 +519,38 @@ export type Database = {
             columns: ["vehicle_id"]
             isOneToOne: false
             referencedRelation: "vehicles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      support_messages: {
+        Row: {
+          created_at: string | null
+          id: string
+          message_text: string
+          sender_id: string
+          ticket_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          message_text: string
+          sender_id: string
+          ticket_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          message_text?: string
+          sender_id?: string
+          ticket_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "support_messages_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "support_tickets"
             referencedColumns: ["id"]
           },
         ]
