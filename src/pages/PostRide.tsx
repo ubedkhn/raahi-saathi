@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Shield, Upload, CheckCircle, AlertCircle, Car, MapPin, Calendar, Clock, Users, IndianRupee, Bike } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { LocationInput, LocationData } from "@/components/common";
 
 interface Vehicle {
   id: string;
@@ -32,9 +33,9 @@ const PostRide = () => {
   const [platePlotoFile, setPlatePlotoFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
 
-  // Ride form states
-  const [origin, setOrigin] = useState("");
-  const [destination, setDestination] = useState("");
+  // Ride form states - now storing full location data with coordinates
+  const [originLocation, setOriginLocation] = useState<LocationData | null>(null);
+  const [destinationLocation, setDestinationLocation] = useState<LocationData | null>(null);
   const [date, setDate] = useState("");
   const [time, setTime] = useState("");
   const [selectedVehicle, setSelectedVehicle] = useState("");
@@ -210,19 +211,19 @@ const PostRide = () => {
 
   const handlePostRide = async () => {
     // Validation
-    if (!origin.trim() || origin.length < 3) {
+    if (!originLocation) {
       toast({
         title: "Invalid Origin",
-        description: "Please enter a valid pickup location (min 3 characters)",
+        description: "Please select a pickup location from the suggestions",
         variant: "destructive",
       });
       return;
     }
 
-    if (!destination.trim() || destination.length < 3) {
+    if (!destinationLocation) {
       toast({
         title: "Invalid Destination",
-        description: "Please enter a valid destination (min 3 characters)",
+        description: "Please select a destination from the suggestions",
         variant: "destructive",
       });
       return;
@@ -284,19 +285,18 @@ const PostRide = () => {
       // Combine date + time into ISO timestamp
       const startTime = new Date(`${date}T${time}`).toISOString();
 
-      // For MVP: Use placeholder coordinates (0,0)
-      // Later: Integrate geocoding API
+      // Insert ride with geocoded coordinates
       const { error } = await supabase
         .from('rides')
         .insert({
           driver_id: currentUser.id,
           vehicle_id: selectedVehicle,
-          origin_address: origin.trim(),
-          destination_address: destination.trim(),
-          origin_lat: 0,
-          origin_lng: 0,
-          destination_lat: 0,
-          destination_lng: 0,
+          origin_address: originLocation.address,
+          destination_address: destinationLocation.address,
+          origin_lat: originLocation.latitude,
+          origin_lng: originLocation.longitude,
+          destination_lat: destinationLocation.latitude,
+          destination_lng: destinationLocation.longitude,
           start_time: startTime,
           seats_available: seatsAvailable,
           price_per_km: parseFloat(pricePerKm),
@@ -372,36 +372,42 @@ const PostRide = () => {
             ) : (
               // Ride creation form
               <>
-                {/* Origin & Destination */}
+                {/* Origin & Destination with Geocoding */}
                 <div className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="origin" className="text-base font-semibold flex items-center gap-2">
+                    <Label className="text-base font-semibold flex items-center gap-2">
                       <MapPin className="w-4 h-4 text-primary" />
                       From *
                     </Label>
-                    <Input
-                      id="origin"
-                      type="text"
-                      placeholder="Enter pickup location"
-                      value={origin}
-                      onChange={(e) => setOrigin(e.target.value)}
-                      className="min-h-[44px]"
+                    <LocationInput
+                      placeholder="Search pickup location..."
+                      value={originLocation?.address || ""}
+                      onLocationSelect={setOriginLocation}
+                      icon="origin"
                     />
+                    {originLocation && (
+                      <p className="text-xs text-muted-foreground">
+                        📍 {originLocation.latitude.toFixed(4)}, {originLocation.longitude.toFixed(4)}
+                      </p>
+                    )}
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="destination" className="text-base font-semibold flex items-center gap-2">
+                    <Label className="text-base font-semibold flex items-center gap-2">
                       <MapPin className="w-4 h-4 text-destructive" />
                       To *
                     </Label>
-                    <Input
-                      id="destination"
-                      type="text"
-                      placeholder="Enter destination"
-                      value={destination}
-                      onChange={(e) => setDestination(e.target.value)}
-                      className="min-h-[44px]"
+                    <LocationInput
+                      placeholder="Search destination..."
+                      value={destinationLocation?.address || ""}
+                      onLocationSelect={setDestinationLocation}
+                      icon="destination"
                     />
+                    {destinationLocation && (
+                      <p className="text-xs text-muted-foreground">
+                        📍 {destinationLocation.latitude.toFixed(4)}, {destinationLocation.longitude.toFixed(4)}
+                      </p>
+                    )}
                   </div>
                 </div>
 
@@ -537,7 +543,7 @@ const PostRide = () => {
                 <Button
                   variant="action"
                   onClick={handlePostRide}
-                  disabled={submitting || !origin || !destination || !date || !time || !selectedVehicle || !pricePerKm}
+                  disabled={submitting || !originLocation || !destinationLocation || !date || !time || !selectedVehicle || !pricePerKm}
                   className="w-full text-lg h-14 font-bold shadow-xl min-h-[56px]"
                 >
                   {submitting ? "Posting Ride..." : "🚀 Post Ride"}
