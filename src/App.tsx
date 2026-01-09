@@ -1,12 +1,12 @@
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { QueryClientProvider } from "@tanstack/react-query";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { ThemeProvider } from "@/components/ThemeProvider";
+import { queryClient } from "@/lib/queryClient";
 import Layout from "@/components/layout/Layout";
 import AdminLayout from "@/components/admin/AdminLayout";
-import Landing from "./pages/Landing";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import Profile from "./pages/Profile";
@@ -25,8 +25,6 @@ import PostRide from "./pages/PostRide";
 import Chats from "./pages/Chats";
 import Support from "./pages/Support";
 
-const queryClient = new QueryClient();
-
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
@@ -36,7 +34,8 @@ const App = () => (
         <BrowserRouter>
           <Routes>
             {/* Public routes - NO layout */}
-            <Route path="/" element={<Landing />} />
+            {/* Redirect root to auth page */}
+            <Route path="/" element={<Navigate to="/auth" replace />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/admin/login" element={<AdminLogin />} />
             

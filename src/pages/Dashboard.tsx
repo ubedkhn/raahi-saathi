@@ -66,10 +66,27 @@ const Dashboard = () => {
       <div className="mb-8">
         <div className="flex items-center gap-2 mb-2">
           <h2 className="text-3xl font-bold">Welcome, {profile?.name}!</h2>
-          <Badge variant={profile?.kyc_status === 'verified' ? 'default' : 'secondary'}>
-            <Shield className="w-3 h-3 mr-1" />
-            {profile?.kyc_status || 'pending'}
-          </Badge>
+          {profile?.kyc_status === 'verified' ? (
+            <Badge variant="default">
+              <Shield className="w-3 h-3 mr-1" />
+              Verified
+            </Badge>
+          ) : profile?.kyc_status === 'pending' ? (
+            <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
+              <Shield className="w-3 h-3 mr-1" />
+              Verification Pending
+            </Badge>
+          ) : profile?.kyc_status === 'rejected' ? (
+            <Badge variant="destructive">
+              <Shield className="w-3 h-3 mr-1" />
+              Rejected
+            </Badge>
+          ) : (
+            <Badge variant="outline">
+              <Shield className="w-3 h-3 mr-1" />
+              Complete KYC
+            </Badge>
+          )}
         </div>
         <p className="text-muted-foreground">Where would you like to go today?</p>
       </div>
@@ -139,7 +156,23 @@ const Dashboard = () => {
                 <Car className="mr-2 h-5 w-5" />
                 Offer a Ride
               </Button>
-              {profile?.kyc_status !== 'verified' && (
+              {profile?.kyc_status === 'pending' && (
+                <div className="text-center py-2">
+                  <Shield className="w-10 h-10 mx-auto mb-3 text-yellow-500" />
+                  <p className="text-sm text-muted-foreground mb-3">
+                    Your KYC verification is in progress. You'll be notified once approved.
+                  </p>
+                </div>
+              )}
+              {profile?.kyc_status === 'rejected' && (
+                <div className="text-center py-2">
+                  <Shield className="w-10 h-10 mx-auto mb-3 text-destructive" />
+                  <p className="text-sm text-destructive mb-3">
+                    Your KYC was rejected. Please resubmit your documents.
+                  </p>
+                </div>
+              )}
+              {(!profile?.kyc_status || profile?.kyc_status === null) && (
                 <div className="text-center py-2">
                   <Shield className="w-10 h-10 mx-auto mb-3 text-muted-foreground" />
                   <p className="text-sm text-muted-foreground mb-3">

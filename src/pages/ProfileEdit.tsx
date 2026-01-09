@@ -228,12 +228,24 @@ const ProfileEdit = () => {
 
               <div>
                 <Label htmlFor="phone">Phone Number</Label>
-                <Input
-                  id="phone"
-                  value={profile.phone}
-                  onChange={(e) => setProfile({ ...profile, phone: e.target.value })}
-                  placeholder="Enter your phone number"
-                />
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-medium select-none">
+                    +91
+                  </span>
+                  <Input
+                    id="phone"
+                    type="tel"
+                    inputMode="numeric"
+                    placeholder="9876543210"
+                    className="pl-12"
+                    maxLength={10}
+                    value={profile.phone.replace(/^\+91/, '')}
+                    onChange={(e) => {
+                      const digits = e.target.value.replace(/\D/g, '').slice(0, 10);
+                      setProfile({ ...profile, phone: `+91${digits}` });
+                    }}
+                  />
+                </div>
               </div>
 
               <div>

@@ -3,7 +3,8 @@ import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { AdminSidebar } from "./AdminSidebar";
 import { Button } from "@/components/ui/button";
-import { Menu, X, LogOut } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Menu, X, LogOut, Bell } from "lucide-react";
 import { toast } from "sonner";
 
 const AdminLayout = () => {
@@ -13,10 +14,53 @@ const AdminLayout = () => {
   const [isAdmin, setIsAdmin] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [adminName, setAdminName] = useState("");
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [adminId, setAdminId] = useState<string | null>(null);
 
   useEffect(() => {
     checkAdminAccess();
   }, []);
+
+  // Subscribe to new support messages for notifications
+  useEffect(() => {
+    if (!adminId) return;
+
+    const channel = supabase
+      .channel('admin-support-notifications')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'support_messages',
+        },
+        async (payload) => {
+          // Check if the sender is not the admin
+          if (payload.new.sender_id !== adminId) {
+            setUnreadCount((prev) => prev + 1);
+            toast.info("New support message received!", {
+              description: "A user has sent a new message.",
+              action: {
+                label: "View",
+                onClick: () => navigate("/admin/support"),
+              },
+            });
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [adminId, navigate]);
+
+  // Reset unread count when navigating to support page
+  useEffect(() => {
+    if (location.pathname === '/admin/support') {
+      setUnreadCount(0);
+    }
+  }, [location.pathname]);
 
   const checkAdminAccess = async () => {
     try {
@@ -26,6 +70,8 @@ const AdminLayout = () => {
         navigate("/admin/login");
         return;
       }
+
+      setAdminId(session.user.id);
 
       // Check if user has admin role
       const { data: roleData, error: roleError } = await supabase
@@ -124,6 +170,22 @@ const AdminLayout = () => {
             <span className="text-sm text-muted-foreground hidden sm:block">
               Welcome, {adminName}
             </span>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="relative"
+              onClick={() => navigate('/admin/support')}
+            >
+              <Bell className="h-5 w-5" />
+              {unreadCount > 0 && (
+                <Badge 
+                  variant="destructive" 
+                  className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 text-xs"
+                >
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </Badge>
+              )}
+            </Button>
             <Button variant="outline" size="sm" onClick={handleLogout}>
               <LogOut className="h-4 w-4 mr-2" />
               Logout

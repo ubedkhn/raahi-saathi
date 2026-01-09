@@ -741,6 +741,10 @@ const Profile = () => {
                 <Settings className="h-4 w-4 mr-2" />
                 More Settings
               </Button>
+              <Button onClick={() => navigate("/support")} variant="outline" className="w-full justify-start hover-scale">
+                <Phone className="h-4 w-4 mr-2" />
+                Help & Support
+              </Button>
               <Button onClick={handleLogout} variant="outline" className="w-full justify-start hover-scale">
                 <LogOut className="h-4 w-4 mr-2" />
                 Logout

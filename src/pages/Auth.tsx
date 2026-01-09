@@ -309,12 +309,16 @@ const Auth = () => {
     try {
       const validated = result.data;
       
-      // Create auth user
+      // Create auth user with metadata - trigger will create profile
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: validated.email,
         password: validated.password,
         options: {
           emailRedirectTo: `${window.location.origin}/dashboard`,
+          data: {
+            name: validated.name,
+            phone: validated.phone,
+          }
         }
       });
 
@@ -323,33 +327,13 @@ const Auth = () => {
           title: "Signup failed",
           description: authError.message.includes('already registered') 
             ? "This email is already registered. Please login instead."
-            : "Unable to create account. Please try again.",
+            : authError.message,
           variant: "destructive",
         });
         return;
       }
       
       if (!authData.user) throw new Error("No user data returned");
-
-      // Create profile
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .insert([
-          {
-            id: authData.user.id,
-            name: validated.name,
-            phone: validated.phone,
-          }
-        ]);
-
-      if (profileError) {
-        toast({
-          title: "Signup failed",
-          description: "Unable to create profile. Please try again.",
-          variant: "destructive",
-        });
-        return;
-      }
 
       toast({
         title: "Account created!",
@@ -649,19 +633,27 @@ const Auth = () => {
                   
                   <div className="space-y-2">
                     <Label htmlFor="signup-phone">Phone Number</Label>
-                    <Input
-                      id="signup-phone"
-                      type="tel"
-                      placeholder="+919876543210"
-                      value={signupData.phone}
-                      onChange={(e) => {
-                        setSignupData({ ...signupData, phone: e.target.value });
-                        if (signupErrors.phone) {
-                          setSignupErrors({ ...signupErrors, phone: "" });
-                        }
-                      }}
-                      className={signupErrors.phone ? "border-destructive" : ""}
-                    />
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-medium select-none">
+                        +91
+                      </span>
+                      <Input
+                        id="signup-phone"
+                        type="tel"
+                        inputMode="numeric"
+                        placeholder="9876543210"
+                        className={`pl-12 ${signupErrors.phone ? "border-destructive" : ""}`}
+                        maxLength={10}
+                        value={signupData.phone.replace(/^\+91/, '')}
+                        onChange={(e) => {
+                          const digits = e.target.value.replace(/\D/g, '').slice(0, 10);
+                          setSignupData({ ...signupData, phone: `+91${digits}` });
+                          if (signupErrors.phone) {
+                            setSignupErrors({ ...signupErrors, phone: "" });
+                          }
+                        }}
+                      />
+                    </div>
                     {signupErrors.phone && (
                       <p className="text-sm text-destructive">{signupErrors.phone}</p>
                     )}
