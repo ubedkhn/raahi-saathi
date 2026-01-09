@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { AlertTriangle, Phone, MapPin, Users } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import BottomNav from "@/components/BottomNav";
 
 const SOS = () => {
   const navigate = useNavigate();
@@ -120,101 +119,93 @@ This is an automated SOS message from Raahi.`;
   }
 
   return (
-    <div className="min-h-screen bg-background pb-20">
-      <header className="bg-card border-b sticky top-0 z-10 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 py-4">
-          <h1 className="text-2xl font-bold text-destructive">Emergency SOS</h1>
-        </div>
-      </header>
+    <div className="max-w-7xl mx-auto px-4 py-8 space-y-6">
+      <Card className="border-destructive">
+        <CardHeader className="text-center">
+          <div className="w-20 h-20 bg-destructive/10 rounded-full flex items-center justify-center mx-auto mb-4">
+            <AlertTriangle className="w-10 h-10 text-destructive" />
+          </div>
+          <CardTitle className="text-2xl">Emergency Alert</CardTitle>
+          <CardDescription>
+            Press the button below to send your location and emergency message to all your emergency contacts
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <Button
+            onClick={triggerSOS}
+            disabled={sendingAlert || emergencyContacts.length === 0}
+            className="w-full h-20 text-xl bg-destructive hover:bg-destructive/90 active:bg-destructive/80 min-h-[80px]"
+          >
+            {sendingAlert ? "Sending Alert..." : "TRIGGER SOS"}
+          </Button>
 
-      <div className="max-w-7xl mx-auto px-4 py-8 space-y-6">
-        <Card className="border-destructive">
-          <CardHeader className="text-center">
-            <div className="w-20 h-20 bg-destructive/10 rounded-full flex items-center justify-center mx-auto mb-4">
-              <AlertTriangle className="w-10 h-10 text-destructive" />
-            </div>
-            <CardTitle className="text-2xl">Emergency Alert</CardTitle>
-            <CardDescription>
-              Press the button below to send your location and emergency message to all your emergency contacts
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <Button
-              onClick={triggerSOS}
-              disabled={sendingAlert || emergencyContacts.length === 0}
-              className="w-full h-20 text-xl bg-destructive hover:bg-destructive/90"
-            >
-              {sendingAlert ? "Sending Alert..." : "TRIGGER SOS"}
-            </Button>
-
-            {emergencyContacts.length === 0 && (
-              <div className="text-center p-4 bg-muted rounded-lg">
-                <Users className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
-                <p className="text-sm text-muted-foreground mb-2">
-                  No emergency contacts added yet
-                </p>
-                <Button
-                  variant="outline"
-                  onClick={() => navigate('/profile')}
-                >
-                  Add Emergency Contacts
-                </Button>
-              </div>
-            )}
-
-            {location && (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <MapPin className="w-4 h-4" />
-                <span>Current location: {location.lat.toFixed(4)}, {location.lng.toFixed(4)}</span>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Users className="w-5 h-5" />
-              Emergency Contacts ({emergencyContacts.length})
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {emergencyContacts.map((contact) => (
-              <div
-                key={contact.id}
-                className="flex items-center justify-between p-3 bg-accent rounded-lg"
+          {emergencyContacts.length === 0 && (
+            <div className="text-center p-4 bg-muted rounded-lg">
+              <Users className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
+              <p className="text-sm text-muted-foreground mb-2">
+                No emergency contacts added yet
+              </p>
+              <Button
+                variant="outline"
+                onClick={() => navigate('/profile')}
+                className="min-h-[44px]"
               >
-                <div>
-                  <p className="font-medium">{contact.name}</p>
-                  <p className="text-sm text-muted-foreground">{contact.relationship}</p>
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => window.location.href = `tel:${contact.phone}`}
-                >
-                  <Phone className="w-4 h-4 mr-2" />
-                  Call
-                </Button>
+                Add Emergency Contacts
+              </Button>
+            </div>
+          )}
+
+          {location && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <MapPin className="w-4 h-4" />
+              <span>Current location: {location.lat.toFixed(4)}, {location.lng.toFixed(4)}</span>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Users className="w-5 h-5" />
+            Emergency Contacts ({emergencyContacts.length})
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {emergencyContacts.map((contact) => (
+            <div
+              key={contact.id}
+              className="flex items-center justify-between p-3 bg-accent rounded-lg"
+            >
+              <div>
+                <p className="font-medium">{contact.name}</p>
+                <p className="text-sm text-muted-foreground">{contact.relationship}</p>
               </div>
-            ))}
-          </CardContent>
-        </Card>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => window.location.href = `tel:${contact.phone}`}
+                className="min-h-[44px]"
+              >
+                <Phone className="w-4 h-4 mr-2" />
+                Call
+              </Button>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
 
-        <Card className="bg-muted/50">
-          <CardHeader>
-            <CardTitle className="text-lg">How SOS Works</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2 text-sm text-muted-foreground">
-            <p>• Sends SMS with your location to all emergency contacts</p>
-            <p>• Automatically calls your primary emergency contact</p>
-            <p>• Includes current time and GPS coordinates</p>
-            <p>• Works even without internet (uses SMS)</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      <BottomNav />
+      <Card className="bg-muted/50">
+        <CardHeader>
+          <CardTitle className="text-lg">How SOS Works</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2 text-sm text-muted-foreground">
+          <p>• Sends SMS with your location to all emergency contacts</p>
+          <p>• Automatically calls your primary emergency contact</p>
+          <p>• Includes current time and GPS coordinates</p>
+          <p>• Works even without internet (uses SMS)</p>
+        </CardContent>
+      </Card>
     </div>
   );
 };

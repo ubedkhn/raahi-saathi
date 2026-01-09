@@ -5,9 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ArrowLeft, Shield, Upload, CheckCircle, AlertCircle, Car } from "lucide-react";
+import { Shield, Upload, CheckCircle, AlertCircle, Car } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import BottomNav from "@/components/BottomNav";
 
 const PostRide = () => {
   const navigate = useNavigate();
@@ -188,210 +187,197 @@ const PostRide = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background pb-20">
-      <header className="bg-card border-b sticky top-0 z-10 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 py-4 flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => navigate('/dashboard')}>
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-          <h1 className="text-2xl font-bold text-primary">Post a Ride</h1>
-        </div>
-      </header>
-
-      <div className="max-w-3xl mx-auto px-4 py-8">
-        {profile?.kyc_status === 'verified' ? (
-          <Card>
-            <CardHeader>
-              <CardTitle>Create New Ride</CardTitle>
-              <CardDescription>Share your journey and earn money</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="text-center py-8 text-muted-foreground">
-                <CheckCircle className="w-16 h-16 mx-auto mb-4 text-success" />
-                <p className="text-lg font-semibold text-foreground mb-2">KYC Verified!</p>
-                <p>Ride posting functionality coming soon...</p>
-              </div>
-            </CardContent>
-          </Card>
-        ) : profile?.kyc_status === 'pending' ? (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Shield className="w-5 h-5 text-warning" />
-                KYC Verification Pending
-              </CardTitle>
-              <CardDescription>
-                Your documents are under review by our admin team
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="text-center py-8">
-                <AlertCircle className="w-16 h-16 mx-auto mb-4 text-warning" />
-                <p className="text-muted-foreground mb-4">
-                  We're reviewing your documents. This usually takes 24-48 hours.
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  You'll receive a notification once your verification is complete.
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-        ) : (
-          <Card className="shadow-lg">
-            <CardHeader className="bg-gradient-to-r from-primary/10 to-secondary/10">
-              <CardTitle className="text-3xl text-center font-bold text-primary">Complete KYC Verification</CardTitle>
-              <CardDescription className="text-center text-lg">
-                Upload your documents to start offering rides
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-8 pt-8">
-              {/* Personal Documents Section */}
-              <div className="space-y-6 p-6 bg-accent/30 rounded-lg border-2 border-primary/20">
-                <h3 className="text-xl font-semibold text-primary flex items-center gap-2">
-                  <Shield className="h-5 w-5" />
-                  Personal Documents
-                </h3>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="aadhaar" className="text-base font-semibold">Aadhaar Number *</Label>
-                  <Input
-                    id="aadhaar"
-                    type="text"
-                    placeholder="Enter 12-digit Aadhaar number"
-                    maxLength={12}
-                    value={aadhaarNumber}
-                    onChange={(e) => setAadhaarNumber(e.target.value.replace(/\D/g, ''))}
-                    className="text-lg"
-                  />
-                  <p className="text-sm text-muted-foreground flex items-center gap-1">
-                    <Shield className="h-4 w-4" />
-                    Required for identity verification and passenger safety
-                  </p>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="license" className="text-base font-semibold">Driving License Photo *</Label>
-                  <div className="border-2 border-dashed border-border rounded-lg p-6 text-center hover:border-primary transition-colors cursor-pointer">
-                    <Input
-                      id="license"
-                      type="file"
-                      accept="image/*"
-                      onChange={(e) => setDrivingLicenseFile(e.target.files?.[0] || null)}
-                      className="hidden"
-                    />
-                    <label htmlFor="license" className="cursor-pointer">
-                      <Upload className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
-                      {drivingLicenseFile ? (
-                        <p className="text-sm text-success font-medium">✓ {drivingLicenseFile.name}</p>
-                      ) : (
-                        <p className="text-sm">Click to upload driving license</p>
-                      )}
-                    </label>
-                  </div>
-                  <p className="text-sm text-muted-foreground">
-                    Upload a clear photo of your valid driving license
-                  </p>
-                </div>
-              </div>
-
-              {/* Vehicle Documents Section */}
-              <div className="space-y-6 p-6 bg-secondary/10 rounded-lg border-2 border-secondary/30">
-                <h3 className="text-xl font-semibold text-secondary-foreground flex items-center gap-2">
-                  <Car className="h-5 w-5" />
-                  Vehicle Documents
-                </h3>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="vehicle-reg" className="text-base font-semibold">Vehicle Registration Card *</Label>
-                  <div className="border-2 border-dashed border-border rounded-lg p-6 text-center hover:border-secondary transition-colors cursor-pointer">
-                    <Input
-                      id="vehicle-reg"
-                      type="file"
-                      accept="image/*,.pdf"
-                      onChange={(e) => setVehicleRegFile(e.target.files?.[0] || null)}
-                      className="hidden"
-                    />
-                    <label htmlFor="vehicle-reg" className="cursor-pointer">
-                      <Upload className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
-                      {vehicleRegFile ? (
-                        <p className="text-sm text-success font-medium">✓ {vehicleRegFile.name}</p>
-                      ) : (
-                        <p className="text-sm">Click to upload RC book</p>
-                      )}
-                    </label>
-                  </div>
-                  <p className="text-sm text-muted-foreground">
-                    Upload your RC book/vehicle registration certificate
-                  </p>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="vehicle-photo" className="text-base font-semibold">Vehicle Photo *</Label>
-                  <div className="border-2 border-dashed border-border rounded-lg p-6 text-center hover:border-secondary transition-colors cursor-pointer">
-                    <Input
-                      id="vehicle-photo"
-                      type="file"
-                      accept="image/*"
-                      onChange={(e) => setVehiclePhotoFile(e.target.files?.[0] || null)}
-                      className="hidden"
-                    />
-                    <label htmlFor="vehicle-photo" className="cursor-pointer">
-                      <Upload className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
-                      {vehiclePhotoFile ? (
-                        <p className="text-sm text-success font-medium">✓ {vehiclePhotoFile.name}</p>
-                      ) : (
-                        <p className="text-sm">Click to upload vehicle photo</p>
-                      )}
-                    </label>
-                  </div>
-                  <p className="text-sm text-muted-foreground">
-                    Upload a clear photo of your vehicle from the side
-                  </p>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="plate-photo" className="text-base font-semibold">Number Plate Photo *</Label>
-                  <div className="border-2 border-dashed border-border rounded-lg p-6 text-center hover:border-secondary transition-colors cursor-pointer">
-                    <Input
-                      id="plate-photo"
-                      type="file"
-                      accept="image/*"
-                      onChange={(e) => setPlatePlotoFile(e.target.files?.[0] || null)}
-                      className="hidden"
-                    />
-                    <label htmlFor="plate-photo" className="cursor-pointer">
-                      <Upload className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
-                      {platePlotoFile ? (
-                        <p className="text-sm text-success font-medium">✓ {platePlotoFile.name}</p>
-                      ) : (
-                        <p className="text-sm">Click to upload plate photo</p>
-                      )}
-                    </label>
-                  </div>
-                  <p className="text-sm text-muted-foreground">
-                    Upload a clear photo showing the vehicle's number plate
-                  </p>
-                </div>
-              </div>
-
-              <Button
-                variant="action"
-                onClick={handleKYCSubmit}
-                disabled={uploading || !aadhaarNumber || !drivingLicenseFile || !vehicleRegFile || !vehiclePhotoFile || !platePlotoFile}
-                className="w-full text-lg h-14 font-bold shadow-xl"
-              >
-                {uploading ? "Uploading Documents..." : "Submit for Verification"}
-              </Button>
-
-              <p className="text-center text-sm text-muted-foreground">
-                All documents will be verified by our admin team within 24-48 hours
+    <div className="max-w-3xl mx-auto px-4 py-8">
+      {profile?.kyc_status === 'verified' ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Create New Ride</CardTitle>
+            <CardDescription>Share your journey and earn money</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="text-center py-8 text-muted-foreground">
+              <CheckCircle className="w-16 h-16 mx-auto mb-4 text-success" />
+              <p className="text-lg font-semibold text-foreground mb-2">KYC Verified!</p>
+              <p>Ride posting functionality coming soon...</p>
+            </div>
+          </CardContent>
+        </Card>
+      ) : profile?.kyc_status === 'pending' ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Shield className="w-5 h-5 text-warning" />
+              KYC Verification Pending
+            </CardTitle>
+            <CardDescription>
+              Your documents are under review by our admin team
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="text-center py-8">
+              <AlertCircle className="w-16 h-16 mx-auto mb-4 text-warning" />
+              <p className="text-muted-foreground mb-4">
+                We're reviewing your documents. This usually takes 24-48 hours.
               </p>
-            </CardContent>
-          </Card>
-        )}
-      </div>
+              <p className="text-sm text-muted-foreground">
+                You'll receive a notification once your verification is complete.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      ) : (
+        <Card className="shadow-lg">
+          <CardHeader className="bg-gradient-to-r from-primary/10 to-secondary/10">
+            <CardTitle className="text-3xl text-center font-bold text-primary">Complete KYC Verification</CardTitle>
+            <CardDescription className="text-center text-lg">
+              Upload your documents to start offering rides
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-8 pt-8">
+            {/* Personal Documents Section */}
+            <div className="space-y-6 p-6 bg-accent/30 rounded-lg border-2 border-primary/20">
+              <h3 className="text-xl font-semibold text-primary flex items-center gap-2">
+                <Shield className="h-5 w-5" />
+                Personal Documents
+              </h3>
+              
+              <div className="space-y-2">
+                <Label htmlFor="aadhaar" className="text-base font-semibold">Aadhaar Number *</Label>
+                <Input
+                  id="aadhaar"
+                  type="text"
+                  placeholder="Enter 12-digit Aadhaar number"
+                  maxLength={12}
+                  value={aadhaarNumber}
+                  onChange={(e) => setAadhaarNumber(e.target.value.replace(/\D/g, ''))}
+                  className="text-lg min-h-[44px]"
+                />
+                <p className="text-sm text-muted-foreground flex items-center gap-1">
+                  <Shield className="h-4 w-4" />
+                  Required for identity verification and passenger safety
+                </p>
+              </div>
 
-      <BottomNav />
+              <div className="space-y-2">
+                <Label htmlFor="license" className="text-base font-semibold">Driving License Photo *</Label>
+                <div className="border-2 border-dashed border-border rounded-lg p-6 text-center active:border-primary transition-colors cursor-pointer">
+                  <Input
+                    id="license"
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => setDrivingLicenseFile(e.target.files?.[0] || null)}
+                    className="hidden"
+                  />
+                  <label htmlFor="license" className="cursor-pointer">
+                    <Upload className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
+                    {drivingLicenseFile ? (
+                      <p className="text-sm text-success font-medium">✓ {drivingLicenseFile.name}</p>
+                    ) : (
+                      <p className="text-sm">Click to upload driving license</p>
+                    )}
+                  </label>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Upload a clear photo of your valid driving license
+                </p>
+              </div>
+            </div>
+
+            {/* Vehicle Documents Section */}
+            <div className="space-y-6 p-6 bg-secondary/10 rounded-lg border-2 border-secondary/30">
+              <h3 className="text-xl font-semibold text-secondary-foreground flex items-center gap-2">
+                <Car className="h-5 w-5" />
+                Vehicle Documents
+              </h3>
+              
+              <div className="space-y-2">
+                <Label htmlFor="vehicle-reg" className="text-base font-semibold">Vehicle Registration Card *</Label>
+                <div className="border-2 border-dashed border-border rounded-lg p-6 text-center active:border-secondary transition-colors cursor-pointer">
+                  <Input
+                    id="vehicle-reg"
+                    type="file"
+                    accept="image/*,.pdf"
+                    onChange={(e) => setVehicleRegFile(e.target.files?.[0] || null)}
+                    className="hidden"
+                  />
+                  <label htmlFor="vehicle-reg" className="cursor-pointer">
+                    <Upload className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
+                    {vehicleRegFile ? (
+                      <p className="text-sm text-success font-medium">✓ {vehicleRegFile.name}</p>
+                    ) : (
+                      <p className="text-sm">Click to upload RC book</p>
+                    )}
+                  </label>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Upload your RC book/vehicle registration certificate
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="vehicle-photo" className="text-base font-semibold">Vehicle Photo *</Label>
+                <div className="border-2 border-dashed border-border rounded-lg p-6 text-center active:border-secondary transition-colors cursor-pointer">
+                  <Input
+                    id="vehicle-photo"
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => setVehiclePhotoFile(e.target.files?.[0] || null)}
+                    className="hidden"
+                  />
+                  <label htmlFor="vehicle-photo" className="cursor-pointer">
+                    <Upload className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
+                    {vehiclePhotoFile ? (
+                      <p className="text-sm text-success font-medium">✓ {vehiclePhotoFile.name}</p>
+                    ) : (
+                      <p className="text-sm">Click to upload vehicle photo</p>
+                    )}
+                  </label>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Upload a clear photo of your vehicle from the side
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="plate-photo" className="text-base font-semibold">Number Plate Photo *</Label>
+                <div className="border-2 border-dashed border-border rounded-lg p-6 text-center active:border-secondary transition-colors cursor-pointer">
+                  <Input
+                    id="plate-photo"
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => setPlatePlotoFile(e.target.files?.[0] || null)}
+                    className="hidden"
+                  />
+                  <label htmlFor="plate-photo" className="cursor-pointer">
+                    <Upload className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
+                    {platePlotoFile ? (
+                      <p className="text-sm text-success font-medium">✓ {platePlotoFile.name}</p>
+                    ) : (
+                      <p className="text-sm">Click to upload plate photo</p>
+                    )}
+                  </label>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Upload a clear photo showing the vehicle's number plate
+                </p>
+              </div>
+            </div>
+
+            <Button
+              variant="action"
+              onClick={handleKYCSubmit}
+              disabled={uploading || !aadhaarNumber || !drivingLicenseFile || !vehicleRegFile || !vehiclePhotoFile || !platePlotoFile}
+              className="w-full text-lg h-14 font-bold shadow-xl min-h-[56px]"
+            >
+              {uploading ? "Uploading Documents..." : "Submit for Verification"}
+            </Button>
+
+            <p className="text-center text-sm text-muted-foreground">
+              All documents will be verified by our admin team within 24-48 hours
+            </p>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 };
