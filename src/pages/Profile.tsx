@@ -13,10 +13,13 @@ import { Separator } from "@/components/ui/separator";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { useTheme } from "next-themes";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { 
   User, Settings, Moon, Sun, Monitor, 
   LogOut, Trash2, Edit, Save, X, Shield, Phone, 
-  Mail, Calendar, MapPin, Wallet, Star, Car, FileText, CheckCircle
+  Mail, Calendar, MapPin, Wallet, Star, Car, FileText, CheckCircle,
+  Plus, Bike
 } from "lucide-react";
 
 const Profile = () => {
@@ -31,6 +34,15 @@ const Profile = () => {
   const [rides, setRides] = useState<any[]>([]);
   const [bookings, setBookings] = useState<any[]>([]);
   const [payments, setPayments] = useState<any[]>([]);
+  const [vehicles, setVehicles] = useState<any[]>([]);
+  const [vehicleDialogOpen, setVehicleDialogOpen] = useState(false);
+  const [vehicleForm, setVehicleForm] = useState({
+    type: '4wheeler' as '2wheeler' | '4wheeler',
+    brand: '',
+    model: '',
+    registration_no: '',
+  });
+  const [vehicleSubmitting, setVehicleSubmitting] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -89,6 +101,14 @@ const Profile = () => {
         .or(`rider_id.eq.${session.user.id},driver_id.eq.${session.user.id}`)
         .order('created_at', { ascending: false });
       setPayments(paymentsData || []);
+
+      // Load vehicles
+      const { data: vehiclesData } = await supabase
+        .from('vehicles')
+        .select('*')
+        .eq('user_id', session.user.id)
+        .order('created_at', { ascending: false });
+      setVehicles(vehiclesData || []);
 
     } catch (error: any) {
       console.error('Error:', error);
@@ -150,6 +170,60 @@ const Profile = () => {
         description: error.message,
         variant: "destructive",
       });
+    }
+  };
+
+  const handleAddVehicle = async () => {
+    if (!vehicleForm.brand || !vehicleForm.model || !vehicleForm.registration_no) {
+      toast({
+        title: "Missing Information",
+        description: "Please fill in all vehicle details",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setVehicleSubmitting(true);
+    try {
+      const { error } = await supabase
+        .from('vehicles')
+        .insert({
+          user_id: user.id,
+          type: vehicleForm.type,
+          brand: vehicleForm.brand,
+          model: vehicleForm.model,
+          registration_no: vehicleForm.registration_no.toUpperCase(),
+          insurance_expiry: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 1 year from now
+          verified: true, // Auto-verify for MVP
+        });
+
+      if (error) throw error;
+
+      toast({
+        title: "Vehicle Added! 🚗",
+        description: "Your vehicle has been added successfully.",
+      });
+
+      // Reset form and close dialog
+      setVehicleForm({ type: '4wheeler', brand: '', model: '', registration_no: '' });
+      setVehicleDialogOpen(false);
+
+      // Refresh vehicles list
+      const { data: vehiclesData } = await supabase
+        .from('vehicles')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+      setVehicles(vehiclesData || []);
+
+    } catch (error: any) {
+      toast({
+        title: "Failed to add vehicle",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setVehicleSubmitting(false);
     }
   };
 
@@ -332,6 +406,154 @@ const Profile = () => {
             </CardContent>
           </Card>
         </div>
+
+        {/* My Vehicles Card */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <Car className="h-5 w-5" />
+                My Vehicles
+              </CardTitle>
+              <CardDescription>Manage your vehicles for posting rides</CardDescription>
+            </div>
+            <Dialog open={vehicleDialogOpen} onOpenChange={setVehicleDialogOpen}>
+              <DialogTrigger asChild>
+                <Button size="sm" className="min-h-[44px]">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Vehicle
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Add New Vehicle</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4 pt-4">
+                  <div>
+                    <Label className="text-base mb-3 block">Vehicle Type</Label>
+                    <RadioGroup
+                      value={vehicleForm.type}
+                      onValueChange={(value: '2wheeler' | '4wheeler') => setVehicleForm({ ...vehicleForm, type: value })}
+                      className="grid grid-cols-2 gap-4"
+                    >
+                      <div>
+                        <RadioGroupItem value="2wheeler" id="2wheeler" className="peer sr-only" />
+                        <Label
+                          htmlFor="2wheeler"
+                          className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer min-h-[80px]"
+                        >
+                          <Bike className="mb-2 h-6 w-6" />
+                          <span className="text-sm font-medium">Bike</span>
+                        </Label>
+                      </div>
+                      <div>
+                        <RadioGroupItem value="4wheeler" id="4wheeler" className="peer sr-only" />
+                        <Label
+                          htmlFor="4wheeler"
+                          className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer min-h-[80px]"
+                        >
+                          <Car className="mb-2 h-6 w-6" />
+                          <span className="text-sm font-medium">Car</span>
+                        </Label>
+                      </div>
+                    </RadioGroup>
+                  </div>
+
+                  <div>
+                    <Label htmlFor="brand">Brand</Label>
+                    <Input
+                      id="brand"
+                      placeholder="e.g., Honda, Maruti"
+                      value={vehicleForm.brand}
+                      onChange={(e) => setVehicleForm({ ...vehicleForm, brand: e.target.value })}
+                      className="min-h-[44px]"
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="model">Model</Label>
+                    <Input
+                      id="model"
+                      placeholder="e.g., Activa 6G, Swift"
+                      value={vehicleForm.model}
+                      onChange={(e) => setVehicleForm({ ...vehicleForm, model: e.target.value })}
+                      className="min-h-[44px]"
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="registration_no">License Plate</Label>
+                    <Input
+                      id="registration_no"
+                      placeholder="e.g., MH-12-AB-1234"
+                      value={vehicleForm.registration_no}
+                      onChange={(e) => setVehicleForm({ ...vehicleForm, registration_no: e.target.value.toUpperCase() })}
+                      className="min-h-[44px] uppercase"
+                    />
+                  </div>
+
+                  <div className="text-sm text-muted-foreground bg-accent/30 p-3 rounded-lg">
+                    <strong>Seats:</strong> {vehicleForm.type === '2wheeler' ? '1 (auto-assigned for bikes)' : '3 (default for cars)'}
+                  </div>
+
+                  <Button 
+                    onClick={handleAddVehicle} 
+                    className="w-full min-h-[44px]"
+                    disabled={vehicleSubmitting}
+                  >
+                    {vehicleSubmitting ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <Save className="h-4 w-4 mr-2" />
+                        Save Vehicle
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+          </CardHeader>
+          <CardContent>
+            {vehicles.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <Car className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                <p>No vehicles added yet</p>
+                <p className="text-sm mt-1">Add a vehicle to start posting rides</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {vehicles.map((vehicle) => (
+                  <div key={vehicle.id} className="flex items-center justify-between p-4 border rounded-lg transition-all hover:shadow-md">
+                    <div className="flex items-center gap-4">
+                      <div className="p-2 bg-primary/10 rounded-full">
+                        {vehicle.type === '2wheeler' ? (
+                          <Bike className="h-6 w-6 text-primary" />
+                        ) : (
+                          <Car className="h-6 w-6 text-primary" />
+                        )}
+                      </div>
+                      <div>
+                        <div className="font-medium">{vehicle.brand} {vehicle.model}</div>
+                        <div className="text-sm text-muted-foreground">{vehicle.registration_no}</div>
+                      </div>
+                    </div>
+                    <Badge variant={vehicle.verified ? 'default' : 'secondary'}>
+                      {vehicle.verified ? (
+                        <><CheckCircle className="w-3 h-3 mr-1" /> Verified</>
+                      ) : (
+                        'Pending'
+                      )}
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
         {/* Tabs for Rides, Bookings, Payments */}
         <Tabs defaultValue="driver" className="space-y-4">
