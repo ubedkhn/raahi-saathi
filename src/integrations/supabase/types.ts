@@ -685,6 +685,7 @@ export type Database = {
     }
     Functions: {
       generate_booking_otp: { Args: never; Returns: string }
+      get_ride_driver_id: { Args: { _ride_id: string }; Returns: string }
       get_ride_participant_profile: {
         Args: { participant_id: string }
         Returns: {
@@ -702,6 +703,10 @@ export type Database = {
         Returns: boolean
       }
       is_ride_participant: {
+        Args: { _ride_id: string; _user_id: string }
+        Returns: boolean
+      }
+      user_has_booking_on_ride: {
         Args: { _ride_id: string; _user_id: string }
         Returns: boolean
       }
