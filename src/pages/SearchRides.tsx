@@ -2,17 +2,22 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { Search, MapPin, Calendar, Users, Car } from "lucide-react";
 import { toast } from "sonner";
 import RideTrackingModal from "@/components/ride-tracking/RideTrackingModal";
+import { LocationInput, LocationData } from "@/components/common";
 
 interface Ride {
   id: string;
   origin_address: string;
   destination_address: string;
+  origin_lat: number;
+  origin_lng: number;
+  destination_lat: number;
+  destination_lng: number;
   start_time: string;
   seats_available: number;
   price_per_km: number;
@@ -31,8 +36,8 @@ interface Ride {
 
 const SearchRides = () => {
   const navigate = useNavigate();
-  const [origin, setOrigin] = useState("");
-  const [destination, setDestination] = useState("");
+  const [originLocation, setOriginLocation] = useState<LocationData | null>(null);
+  const [destinationLocation, setDestinationLocation] = useState<LocationData | null>(null);
   const [date, setDate] = useState("");
   const [time, setTime] = useState("");
   const [loading, setLoading] = useState(false);
@@ -68,11 +73,11 @@ const SearchRides = () => {
         `)
         .eq("status", "scheduled");
 
-      if (origin) {
-        query = query.ilike("origin_address", `%${origin}%`);
+      if (originLocation) {
+        query = query.ilike("origin_address", `%${originLocation.address.split(',')[0]}%`);
       }
-      if (destination) {
-        query = query.ilike("destination_address", `%${destination}%`);
+      if (destinationLocation) {
+        query = query.ilike("destination_address", `%${destinationLocation.address.split(',')[0]}%`);
       }
       if (date && time) {
         query = query.gte("start_time", `${date}T${time}:00`)
@@ -120,15 +125,21 @@ const SearchRides = () => {
         ? Number(ride.total_distance_km) * Number(ride.price_per_km)
         : 0;
 
+      // Use selected locations or fall back to ride's origin/destination
+      const pickupLat = originLocation?.latitude ?? Number(ride.origin_lat);
+      const pickupLng = originLocation?.longitude ?? Number(ride.origin_lng);
+      const dropLat = destinationLocation?.latitude ?? Number(ride.destination_lat);
+      const dropLng = destinationLocation?.longitude ?? Number(ride.destination_lng);
+
       const { data: bookingData, error } = await supabase.from("bookings").insert([{
         ride_id: rideId,
         rider_id: user.id,
-        pickup_address: origin || ride.origin_address,
-        pickup_lat: 0, // Would come from map selection
-        pickup_lng: 0,
-        drop_address: destination || ride.destination_address,
-        drop_lat: 0,
-        drop_lng: 0,
+        pickup_address: originLocation?.address || ride.origin_address,
+        pickup_lat: pickupLat,
+        pickup_lng: pickupLng,
+        drop_address: destinationLocation?.address || ride.destination_address,
+        drop_lat: dropLat,
+        drop_lng: dropLng,
         fare_amount: calculatedFare,
         status: "pending",
       }]).select().single();
@@ -178,29 +189,27 @@ const SearchRides = () => {
           <form onSubmit={handleSearch} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="origin">
-                  <MapPin className="inline w-4 h-4 mr-1" />
+                <Label>
+                  <MapPin className="inline w-4 h-4 mr-1 text-primary" />
                   From
                 </Label>
-                <Input
-                  id="origin"
-                  placeholder="Enter origin city/area"
-                  value={origin}
-                  onChange={(e) => setOrigin(e.target.value)}
-                  className="min-h-[44px]"
+                <LocationInput
+                  placeholder="Search pickup location..."
+                  value={originLocation?.address || ""}
+                  onLocationSelect={setOriginLocation}
+                  icon="origin"
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="destination">
-                  <MapPin className="inline w-4 h-4 mr-1" />
+                <Label>
+                  <MapPin className="inline w-4 h-4 mr-1 text-destructive" />
                   To
                 </Label>
-                <Input
-                  id="destination"
-                  placeholder="Enter destination city/area"
-                  value={destination}
-                  onChange={(e) => setDestination(e.target.value)}
-                  className="min-h-[44px]"
+                <LocationInput
+                  placeholder="Search destination..."
+                  value={destinationLocation?.address || ""}
+                  onLocationSelect={setDestinationLocation}
+                  icon="destination"
                 />
               </div>
             </div>

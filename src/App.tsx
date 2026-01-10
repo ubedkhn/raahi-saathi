@@ -25,6 +25,7 @@ import NotFound from "./pages/NotFound";
 import SOS from "./pages/SOS";
 import RecentRides from "./pages/RecentRides";
 import PostRide from "./pages/PostRide";
+import RequestRide from "./pages/RequestRide";
 import ManageRide from "./pages/ManageRide";
 import Chats from "./pages/Chats";
 import Support from "./pages/Support";
@@ -88,6 +89,7 @@ const App = () => (
               <Route path="/sos" element={<SOS />} />
               <Route path="/recent-rides" element={<RecentRides />} />
               <Route path="/post-ride" element={<PostRide />} />
+              <Route path="/request-ride" element={<RequestRide />} />
               <Route path="/manage-ride/:bookingId" element={<ManageRide />} />
               <Route path="/chats" element={<Chats />} />
               <Route path="/support" element={<Support />} />

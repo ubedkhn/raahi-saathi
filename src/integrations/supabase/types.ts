@@ -441,6 +441,54 @@ export type Database = {
           },
         ]
       }
+      ride_requests: {
+        Row: {
+          created_at: string | null
+          destination_address: string
+          destination_lat: number
+          destination_lng: number
+          id: string
+          origin_address: string
+          origin_lat: number
+          origin_lng: number
+          preferred_time: string
+          rider_id: string
+          seats_needed: number | null
+          status: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          destination_address: string
+          destination_lat: number
+          destination_lng: number
+          id?: string
+          origin_address: string
+          origin_lat: number
+          origin_lng: number
+          preferred_time: string
+          rider_id: string
+          seats_needed?: number | null
+          status?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          destination_address?: string
+          destination_lat?: number
+          destination_lng?: number
+          id?: string
+          origin_address?: string
+          origin_lat?: number
+          origin_lng?: number
+          preferred_time?: string
+          rider_id?: string
+          seats_needed?: number | null
+          status?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       rides: {
         Row: {
           created_at: string | null
