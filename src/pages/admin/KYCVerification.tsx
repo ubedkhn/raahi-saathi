@@ -2,8 +2,10 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { KYCCard } from "@/components/admin/KYCCard";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Shield, CheckCircle, XCircle, Clock } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { Shield, CheckCircle, XCircle, Clock, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 const KYCVerification = () => {
@@ -19,6 +21,8 @@ const KYCVerification = () => {
 
   const loadKYCData = async () => {
     try {
+      // Only fetch users who have actually submitted KYC documents
+      // Pending = has submitted documents and waiting for review
       const { data, error } = await supabase
         .from("profiles")
         .select("*")
@@ -27,7 +31,14 @@ const KYCVerification = () => {
 
       if (error) throw error;
 
-      setPendingUsers(data?.filter(u => u.kyc_status === 'pending') || []);
+      // Filter pending users - only show those who have actually submitted documents
+      // (have aadhaar_number OR driving_license_number OR driving_license_photo_url)
+      const pending = data?.filter(u => 
+        u.kyc_status === 'pending' && 
+        (u.aadhaar_number || u.driving_license_number || u.driving_license_photo_url)
+      ) || [];
+      
+      setPendingUsers(pending);
       setVerifiedUsers(data?.filter(u => u.kyc_status === 'verified') || []);
       setRejectedUsers(data?.filter(u => u.kyc_status === 'rejected') || []);
     } catch (error: any) {
@@ -61,7 +72,13 @@ const KYCVerification = () => {
       });
 
       toast.success("KYC approved successfully");
-      loadKYCData();
+      
+      // Update local state immediately for instant UI feedback
+      const approvedUser = pendingUsers.find(u => u.id === userId);
+      if (approvedUser) {
+        setPendingUsers(prev => prev.filter(u => u.id !== userId));
+        setVerifiedUsers(prev => [{ ...approvedUser, kyc_status: 'verified' }, ...prev]);
+      }
     } catch (error: any) {
       toast.error("Failed to approve KYC");
     } finally {
@@ -90,9 +107,51 @@ const KYCVerification = () => {
       });
 
       toast.success("KYC rejected");
-      loadKYCData();
+      
+      // Update local state immediately
+      const rejectedUser = pendingUsers.find(u => u.id === userId);
+      if (rejectedUser) {
+        setPendingUsers(prev => prev.filter(u => u.id !== userId));
+        setRejectedUsers(prev => [{ ...rejectedUser, kyc_status: 'rejected' }, ...prev]);
+      }
     } catch (error: any) {
       toast.error("Failed to reject KYC");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleDeleteRejected = async (userId: string) => {
+    setActionLoading(true);
+    try {
+      // Clear KYC documents and reset status to null (unsubmitted)
+      const { error } = await supabase
+        .from("profiles")
+        .update({ 
+          kyc_status: null,
+          aadhaar_number: null,
+          aadhaar_verified: false,
+          driving_license_number: null,
+          driving_license_photo_url: null,
+          driving_license_verified: false,
+          kyc_document_url: null
+        })
+        .eq("id", userId);
+
+      if (error) throw error;
+
+      // Log admin action
+      const { data: { user } } = await supabase.auth.getUser();
+      await supabase.from("admin_activity_log").insert({
+        admin_id: user?.id,
+        action: "delete_rejected_kyc",
+        details: { user_id: userId }
+      });
+
+      toast.success("Rejected KYC cleared");
+      setRejectedUsers(prev => prev.filter(u => u.id !== userId));
+    } catch (error: any) {
+      toast.error("Failed to delete KYC");
     } finally {
       setActionLoading(false);
     }
@@ -206,14 +265,38 @@ const KYCVerification = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {rejectedUsers.map((user) => (
                 <div key={user.id} className="p-4 border rounded-lg bg-card border-destructive/30">
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className="h-10 w-10 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
-                      <XCircle className="h-5 w-5 text-red-600" />
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-3">
+                      <div className="h-10 w-10 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
+                        <XCircle className="h-5 w-5 text-red-600" />
+                      </div>
+                      <div>
+                        <p className="font-medium">{user.name}</p>
+                        <p className="text-sm text-muted-foreground">{user.phone}</p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="font-medium">{user.name}</p>
-                      <p className="text-sm text-muted-foreground">{user.phone}</p>
-                    </div>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button variant="destructive" size="sm" disabled={actionLoading}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Delete Rejected KYC?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            This will clear all KYC documents for {user.name}. 
+                            They will need to resubmit their verification documents.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction onClick={() => handleDeleteRejected(user.id)}>
+                            Delete
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
                   </div>
                   <div className="text-sm text-muted-foreground">
                     <p>Aadhaar: {user.aadhaar_number || '-'}</p>

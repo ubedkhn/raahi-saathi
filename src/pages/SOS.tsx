@@ -147,7 +147,7 @@ This is an automated SOS message from Raahi.`;
               </p>
               <Button
                 variant="outline"
-                onClick={() => navigate('/profile')}
+                onClick={() => navigate('/emergency-contacts')}
                 className="min-h-[44px]"
               >
                 Add Emergency Contacts

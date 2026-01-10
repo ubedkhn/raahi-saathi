@@ -5,63 +5,111 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { User, Car, MapPin, Shield, Search } from "lucide-react";
+import { Car, MapPin, Shield, Search, AlertTriangle, Navigation, Clock, History } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useProfile } from "@/hooks/useProfile";
+import { useAdminStatus } from "@/hooks/useAdminStatus";
+import { useMyBookings, useMyRides } from "@/hooks/useRides";
 
 const Dashboard = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [user, setUser] = useState<any>(null);
-  const [profile, setProfile] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const { data: profile, isLoading: profileLoading } = useProfile();
+  const { data: isAdmin } = useAdminStatus();
+  const { data: bookings } = useMyBookings();
+  const { data: myRides } = useMyRides();
+  const [nearbyRides, setNearbyRides] = useState<any[]>([]);
+  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [loadingNearby, setLoadingNearby] = useState(false);
 
   useEffect(() => {
-    checkUser();
-  }, []);
-
-  const checkUser = async () => {
-    try {
+    // Check auth
+    const checkAuth = async () => {
       const { data: { session } } = await supabase.auth.getSession();
-      
       if (!session) {
         navigate("/auth");
         return;
       }
+    };
+    checkAuth();
 
-      setUser(session.user);
-      
-      const { data: profileData, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', session.user.id)
-        .single();
+    // Get user location for nearby rides
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setUserLocation({
+            lat: position.coords.latitude,
+            lng: position.coords.longitude,
+          });
+        },
+        (error) => console.log("Location access denied:", error)
+      );
+    }
+  }, [navigate]);
+
+  // Fetch nearby rides when location is available
+  useEffect(() => {
+    if (userLocation) {
+      loadNearbyRides();
+    }
+  }, [userLocation]);
+
+  const loadNearbyRides = async () => {
+    if (!userLocation) return;
+    setLoadingNearby(true);
+
+    try {
+      const { data: rides, error } = await supabase
+        .from("rides")
+        .select("*, vehicles(*)")
+        .eq("status", "scheduled")
+        .gte("start_time", new Date().toISOString());
 
       if (error) throw error;
-      setProfile(profileData);
 
-      // Check if user has admin role
-      const { data: roleData } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", session.user.id)
-        .eq("role", "admin")
-        .maybeSingle();
-
-      setIsAdmin(!!roleData);
-    } catch (error: any) {
-      console.error('Error:', error);
-      toast({
-        title: "Error loading profile",
-        description: error.message,
-        variant: "destructive",
+      // Filter rides within 150m radius using Haversine formula
+      const nearbyFiltered = (rides || []).filter(ride => {
+        const distance = calculateDistance(
+          userLocation.lat,
+          userLocation.lng,
+          Number(ride.origin_lat),
+          Number(ride.origin_lng)
+        );
+        return distance <= 0.15; // 150 meters = 0.15 km
       });
+
+      setNearbyRides(nearbyFiltered.slice(0, 5));
+    } catch (error: any) {
+      console.error("Error loading nearby rides:", error);
     } finally {
-      setLoading(false);
+      setLoadingNearby(false);
     }
   };
 
-  if (loading) {
+  // Haversine formula to calculate distance between two coordinates in km
+  const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
+    const R = 6371; // Earth's radius in km
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = 
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  };
+
+  // Filter active bookings (not completed/cancelled)
+  const activeBookings = bookings?.filter(b => 
+    b.status !== 'completed' && b.status !== 'cancelled'
+  ) || [];
+
+  // Filter active rides
+  const activeRides = myRides?.filter(r => 
+    r.status === 'scheduled' || r.status === 'active'
+  ) || [];
+
+  if (profileLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
@@ -135,16 +183,78 @@ const Dashboard = () => {
             </CardContent>
           </Card>
 
+          {/* Nearby Rides Section */}
+          {userLocation && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Navigation className="h-5 w-5 text-primary" />
+                  Nearby Rides
+                </CardTitle>
+                <CardDescription>Rides starting within 150m of your location</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {loadingNearby ? (
+                  <div className="text-center py-4">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+                  </div>
+                ) : nearbyRides.length === 0 ? (
+                  <div className="text-center py-6 text-muted-foreground">
+                    <Navigation className="w-10 h-10 mx-auto mb-3 opacity-50" />
+                    <p>No rides nearby right now</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {nearbyRides.map((ride) => (
+                      <div key={ride.id} className="flex items-center justify-between p-3 border rounded-lg hover:shadow-md transition-shadow cursor-pointer" onClick={() => navigate('/search-rides')}>
+                        <div className="flex-1">
+                          <div className="font-medium">{ride.origin_address}</div>
+                          <div className="text-sm text-muted-foreground">→ {ride.destination_address}</div>
+                          <div className="text-xs text-muted-foreground mt-1">
+                            <Clock className="w-3 h-3 inline mr-1" />
+                            {new Date(ride.start_time).toLocaleString()}
+                          </div>
+                        </div>
+                        <Badge>₹{ride.price_per_km}/km</Badge>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
           <Card>
             <CardHeader>
               <CardTitle>Your Bookings</CardTitle>
               <CardDescription>View your upcoming rides</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="text-center py-8 text-muted-foreground">
-                <MapPin className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                <p>No bookings yet. Start searching for rides!</p>
-              </div>
+              {activeBookings.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <MapPin className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                  <p>No active bookings. Start searching for rides!</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {activeBookings.slice(0, 3).map((booking) => (
+                    <div key={booking.id} className="flex items-center justify-between p-3 border rounded-lg">
+                      <div>
+                        <div className="font-medium">{booking.pickup_address}</div>
+                        <div className="text-sm text-muted-foreground">→ {booking.drop_address}</div>
+                      </div>
+                      <Badge variant={booking.status === 'confirmed' ? 'default' : 'secondary'}>
+                        {booking.status}
+                      </Badge>
+                    </div>
+                  ))}
+                  {activeBookings.length > 3 && (
+                    <Button variant="ghost" className="w-full" onClick={() => navigate('/recent-rides')}>
+                      View All ({activeBookings.length})
+                    </Button>
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -200,16 +310,30 @@ const Dashboard = () => {
               <CardDescription>Manage your posted rides</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="text-center py-8 text-muted-foreground">
-                <Car className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                <p>No rides posted yet. Create your first ride!</p>
-              </div>
+              {activeRides.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Car className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                  <p>No rides posted yet. Create your first ride!</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {activeRides.slice(0, 3).map((ride) => (
+                    <div key={ride.id} className="flex items-center justify-between p-3 border rounded-lg">
+                      <div>
+                        <div className="font-medium">{ride.origin_address}</div>
+                        <div className="text-sm text-muted-foreground">→ {ride.destination_address}</div>
+                      </div>
+                      <Badge>{ride.status}</Badge>
+                    </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
       </Tabs>
 
-      {/* Quick Actions */}
+      {/* Quick Actions - Simplified */}
       <div className="mt-8 grid md:grid-cols-3 gap-4">
         {isAdmin && (
           <Card 
@@ -230,37 +354,29 @@ const Dashboard = () => {
           </Card>
         )}
 
-        <Card className="cursor-pointer active:shadow-md transition-shadow" onClick={() => navigate('/profile')}>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <User className="w-8 h-8 text-primary" />
-              <div>
-                <h3 className="font-semibold">Profile</h3>
-                <p className="text-sm text-muted-foreground">Manage your account</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="cursor-pointer active:shadow-md transition-shadow" onClick={() => navigate('/vehicles')}>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <Car className="w-8 h-8 text-primary" />
-              <div>
-                <h3 className="font-semibold">Vehicles</h3>
-                <p className="text-sm text-muted-foreground">Add your vehicles</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
         <Card className="cursor-pointer active:shadow-md transition-shadow" onClick={() => navigate('/sos')}>
           <CardContent className="pt-6">
             <div className="flex items-center gap-3">
-              <Shield className="w-8 h-8 text-primary" />
+              <AlertTriangle className="w-8 h-8 text-destructive" />
               <div>
-                <h3 className="font-semibold">Safety</h3>
-                <p className="text-sm text-muted-foreground">Emergency contacts</p>
+                <h3 className="font-semibold">SOS / Emergency</h3>
+                <p className="text-sm text-muted-foreground">
+                  <span className="text-primary cursor-pointer" onClick={(e) => { e.stopPropagation(); navigate('/emergency-contacts'); }}>
+                    Add Emergency Contacts
+                  </span>
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="cursor-pointer active:shadow-md transition-shadow" onClick={() => navigate('/recent-rides')}>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-3">
+              <History className="w-8 h-8 text-primary" />
+              <div>
+                <h3 className="font-semibold">Ride History</h3>
+                <p className="text-sm text-muted-foreground">View past rides</p>
               </div>
             </div>
           </CardContent>

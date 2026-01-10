@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -5,8 +6,10 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { queryClient } from "@/lib/queryClient";
+import { supabase } from "@/integrations/supabase/client";
 import Layout from "@/components/layout/Layout";
 import AdminLayout from "@/components/admin/AdminLayout";
+import Landing from "./pages/Landing";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import Profile from "./pages/Profile";
@@ -24,6 +27,34 @@ import RecentRides from "./pages/RecentRides";
 import PostRide from "./pages/PostRide";
 import Chats from "./pages/Chats";
 import Support from "./pages/Support";
+import Wallet from "./pages/Wallet";
+import Passbook from "./pages/Passbook";
+import EmergencyContacts from "./pages/EmergencyContacts";
+
+// Auth-aware root route component
+const RootRoute = () => {
+  const [loading, setLoading] = useState(true);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+  useEffect(() => {
+    const checkAuth = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      setIsAuthenticated(!!session);
+      setLoading(false);
+    };
+    checkAuth();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
+  return isAuthenticated ? <Navigate to="/dashboard" replace /> : <Landing />;
+};
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -34,8 +65,7 @@ const App = () => (
         <BrowserRouter>
           <Routes>
             {/* Public routes - NO layout */}
-            {/* Redirect root to auth page */}
-            <Route path="/" element={<Navigate to="/auth" replace />} />
+            <Route path="/" element={<RootRoute />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/admin/login" element={<AdminLogin />} />
             
@@ -59,6 +89,9 @@ const App = () => (
               <Route path="/post-ride" element={<PostRide />} />
               <Route path="/chats" element={<Chats />} />
               <Route path="/support" element={<Support />} />
+              <Route path="/wallet" element={<Wallet />} />
+              <Route path="/passbook" element={<Passbook />} />
+              <Route path="/emergency-contacts" element={<EmergencyContacts />} />
             </Route>
             
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
