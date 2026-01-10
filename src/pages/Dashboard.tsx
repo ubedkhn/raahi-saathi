@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Car, MapPin, Shield, Search, AlertTriangle, Navigation, Clock, History } from "lucide-react";
+import { Car, MapPin, Shield, Search, AlertTriangle, Navigation, Clock, History, Send } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useProfile } from "@/hooks/useProfile";
 import { useAdminStatus } from "@/hooks/useAdminStatus";
@@ -161,25 +161,35 @@ const Dashboard = () => {
         </TabsList>
 
         <TabsContent value="find" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Search for Rides</CardTitle>
-              <CardDescription>
-                Find rides going your way and travel together
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <Button
-                size="lg"
-                variant="find-ride"
-                onClick={() => navigate('/search-rides')}
-                className="w-full font-semibold"
-              >
-                <Search className="mr-2 h-5 w-5" />
-                Find a Ride
-              </Button>
-            </CardContent>
-          </Card>
+          {/* Two main action buttons */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate('/request-ride')}>
+              <CardContent className="pt-6">
+                <div className="flex items-center gap-4">
+                  <div className="p-3 bg-primary/10 rounded-full">
+                    <Send className="w-6 h-6 text-primary" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold">Request a Ride</h3>
+                    <p className="text-sm text-muted-foreground">Post your travel need</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate('/search-rides')}>
+              <CardContent className="pt-6">
+                <div className="flex items-center gap-4">
+                  <div className="p-3 bg-secondary/10 rounded-full">
+                    <Search className="w-6 h-6 text-secondary-foreground" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold">Find a Ride</h3>
+                    <p className="text-sm text-muted-foreground">Search existing offers</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
 
           {/* Nearby Rides Section */}
           {userLocation && (

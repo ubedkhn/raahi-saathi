@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -6,13 +6,32 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Shield, Upload, CheckCircle, AlertCircle, Car, MapPin, Calendar, Clock, Users, IndianRupee, Bike } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Shield, Upload, CheckCircle, AlertCircle, Car, MapPin, Calendar, Clock, Users, IndianRupee, Bike, Send, Check } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { LocationInput, LocationData } from "@/components/common";
 import { useAuth } from "@/hooks/useAuth";
 import { useProfile, useUpdateProfile } from "@/hooks/useProfile";
 import { useMyVehicles } from "@/hooks/useVehicles";
 import { useQueryClient } from "@tanstack/react-query";
+
+interface RideRequest {
+  id: string;
+  rider_id: string;
+  origin_address: string;
+  origin_lat: number;
+  origin_lng: number;
+  destination_address: string;
+  destination_lat: number;
+  destination_lng: number;
+  preferred_time: string;
+  seats_needed: number;
+  status: string;
+  profiles?: {
+    name: string;
+    avatar_url: string | null;
+  };
+}
 
 const PostRide = () => {
   const navigate = useNavigate();
@@ -43,6 +62,135 @@ const PostRide = () => {
   const [seatsAvailable, setSeatsAvailable] = useState(1);
   const [pricePerKm, setPricePerKm] = useState("");
   const [submitting, setSubmitting] = useState(false);
+
+  // Ride requests state
+  const [rideRequests, setRideRequests] = useState<RideRequest[]>([]);
+  const [loadingRequests, setLoadingRequests] = useState(false);
+  const [acceptingRequest, setAcceptingRequest] = useState<string | null>(null);
+
+  // Load nearby ride requests when user is verified driver
+  useEffect(() => {
+    if (profile?.kyc_status === 'verified' && user) {
+      loadNearbyRequests();
+    }
+  }, [profile?.kyc_status, user]);
+
+  // Haversine formula for distance calculation
+  const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
+    const R = 6371; // Earth's radius in km
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = 
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  };
+
+  const loadNearbyRequests = async () => {
+    setLoadingRequests(true);
+    try {
+      // Fetch open ride requests
+      const { data, error } = await supabase
+        .from('ride_requests')
+        .select('*')
+        .eq('status', 'open')
+        .gte('preferred_time', new Date().toISOString())
+        .order('preferred_time', { ascending: true })
+        .limit(10);
+
+      if (error) throw error;
+      setRideRequests(data || []);
+    } catch (error: any) {
+      console.error('Error loading ride requests:', error);
+    } finally {
+      setLoadingRequests(false);
+    }
+  };
+
+  const handleAcceptRequest = async (request: RideRequest) => {
+    if (!user || verifiedVehicles.length === 0) {
+      toast({
+        title: "Cannot Accept",
+        description: "You need at least one verified vehicle to accept ride requests.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setAcceptingRequest(request.id);
+
+    try {
+      // Create a ride from the request
+      const vehicle = verifiedVehicles[0]; // Use first verified vehicle
+      const pricePerKm = vehicle.type === '2wheeler' ? 7 : 11; // Default pricing
+
+      // First create the ride
+      const { data: rideData, error: rideError } = await supabase
+        .from('rides')
+        .insert({
+          driver_id: user.id,
+          vehicle_id: vehicle.id,
+          origin_address: request.origin_address,
+          origin_lat: request.origin_lat,
+          origin_lng: request.origin_lng,
+          destination_address: request.destination_address,
+          destination_lat: request.destination_lat,
+          destination_lng: request.destination_lng,
+          start_time: request.preferred_time,
+          seats_available: request.seats_needed,
+          price_per_km: pricePerKm,
+          status: 'scheduled'
+        })
+        .select()
+        .single();
+
+      if (rideError) throw rideError;
+
+      // Create a booking for the rider
+      const { error: bookingError } = await supabase
+        .from('bookings')
+        .insert({
+          ride_id: rideData.id,
+          rider_id: request.rider_id,
+          pickup_address: request.origin_address,
+          pickup_lat: request.origin_lat,
+          pickup_lng: request.origin_lng,
+          drop_address: request.destination_address,
+          drop_lat: request.destination_lat,
+          drop_lng: request.destination_lng,
+          fare_amount: 0, // Will be calculated based on distance
+          status: 'accepted'
+        });
+
+      if (bookingError) throw bookingError;
+
+      // Update the request status to matched
+      await supabase
+        .from('ride_requests')
+        .update({ status: 'matched' })
+        .eq('id', request.id);
+
+      toast({
+        title: "Request Accepted! 🎉",
+        description: "The rider has been notified. Check your rides to manage the booking.",
+      });
+
+      // Reload requests
+      loadNearbyRequests();
+      queryClient.invalidateQueries({ queryKey: ['my-rides'] });
+
+    } catch (error: any) {
+      toast({
+        title: "Failed to accept",
+        description: error.message || "Something went wrong",
+        variant: "destructive",
+      });
+    } finally {
+      setAcceptingRequest(null);
+    }
+  };
 
   const handleKYCSubmit = async () => {
     if (!aadhaarNumber || aadhaarNumber.length !== 12) {
@@ -290,214 +438,292 @@ const PostRide = () => {
   return (
     <div className="max-w-3xl mx-auto px-4 py-8">
       {profile?.kyc_status === 'verified' ? (
-        <Card className="shadow-lg">
-          <CardHeader className="bg-gradient-to-r from-primary/10 to-secondary/10">
-            <CardTitle className="flex items-center gap-2">
-              <Car className="w-6 h-6 text-primary" />
-              Create New Ride
-            </CardTitle>
-            <CardDescription>Share your journey and earn money</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6 pt-6">
-            {verifiedVehicles.length === 0 ? (
-              // No verified vehicles message
-              <div className="text-center py-8">
-                <AlertCircle className="w-16 h-16 mx-auto mb-4 text-warning" />
-                <p className="text-lg font-semibold text-foreground mb-2">No Verified Vehicles</p>
-                <p className="text-muted-foreground mb-6">
-                  You don't have any verified vehicles yet. Please add a vehicle from your Profile to post rides.
-                </p>
-                <Button 
-                  variant="action" 
-                  onClick={() => navigate('/profile')}
-                  className="min-h-[44px]"
-                >
-                  Go to Profile
-                </Button>
-              </div>
-            ) : (
-              // Ride creation form
-              <>
-                {/* Origin & Destination with Geocoding */}
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label className="text-base font-semibold flex items-center gap-2">
-                      <MapPin className="w-4 h-4 text-primary" />
-                      From *
-                    </Label>
-                    <LocationInput
-                      placeholder="Search pickup location..."
-                      value={originLocation?.address || ""}
-                      onLocationSelect={setOriginLocation}
-                      icon="origin"
-                    />
-                    {originLocation && (
-                      <p className="text-xs text-muted-foreground">
-                        📍 {originLocation.latitude.toFixed(4)}, {originLocation.longitude.toFixed(4)}
-                      </p>
-                    )}
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label className="text-base font-semibold flex items-center gap-2">
-                      <MapPin className="w-4 h-4 text-destructive" />
-                      To *
-                    </Label>
-                    <LocationInput
-                      placeholder="Search destination..."
-                      value={destinationLocation?.address || ""}
-                      onLocationSelect={setDestinationLocation}
-                      icon="destination"
-                    />
-                    {destinationLocation && (
-                      <p className="text-xs text-muted-foreground">
-                        📍 {destinationLocation.latitude.toFixed(4)}, {destinationLocation.longitude.toFixed(4)}
-                      </p>
-                    )}
-                  </div>
-                </div>
-
-                {/* Date & Time */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="date" className="text-base font-semibold flex items-center gap-2">
-                      <Calendar className="w-4 h-4 text-primary" />
-                      Date *
-                    </Label>
-                    <Input
-                      id="date"
-                      type="date"
-                      min={today}
-                      value={date}
-                      onChange={(e) => setDate(e.target.value)}
-                      className="min-h-[44px]"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="time" className="text-base font-semibold flex items-center gap-2">
-                      <Clock className="w-4 h-4 text-primary" />
-                      Time *
-                    </Label>
-                    <Input
-                      id="time"
-                      type="time"
-                      value={time}
-                      onChange={(e) => setTime(e.target.value)}
-                      className="min-h-[44px]"
-                    />
-                  </div>
-                </div>
-
-                {/* Vehicle Selection */}
-                <div className="space-y-3">
-                  <Label className="text-base font-semibold flex items-center gap-2">
-                    <Car className="w-4 h-4 text-primary" />
-                    Select Vehicle *
-                  </Label>
-                  <RadioGroup
-                    value={selectedVehicle}
-                    onValueChange={(value) => {
-                      setSelectedVehicle(value);
-                      // Reset seats if switching to bike
-                      const vehicle = verifiedVehicles.find(v => v.id === value);
-                      if (vehicle?.type === '2wheeler') {
-                        setSeatsAvailable(1);
-                      }
-                    }}
-                    className="space-y-2"
+        <>
+          <Card className="shadow-lg">
+            <CardHeader className="bg-gradient-to-r from-primary/10 to-secondary/10">
+              <CardTitle className="flex items-center gap-2">
+                <Car className="w-6 h-6 text-primary" />
+                Create New Ride
+              </CardTitle>
+              <CardDescription>Share your journey and earn money</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6 pt-6">
+              {verifiedVehicles.length === 0 ? (
+                // No verified vehicles message
+                <div className="text-center py-8">
+                  <AlertCircle className="w-16 h-16 mx-auto mb-4 text-warning" />
+                  <p className="text-lg font-semibold text-foreground mb-2">No Verified Vehicles</p>
+                  <p className="text-muted-foreground mb-6">
+                    You don't have any verified vehicles yet. Please add a vehicle from your Profile to post rides.
+                  </p>
+                  <Button 
+                    variant="action" 
+                    onClick={() => navigate('/profile')}
+                    className="min-h-[44px]"
                   >
-                    {verifiedVehicles.map((vehicle) => (
-                      <div
-                        key={vehicle.id}
-                        className={`flex items-center space-x-3 p-4 rounded-lg border-2 transition-colors ${
-                          selectedVehicle === vehicle.id
-                            ? 'border-primary bg-primary/5'
-                            : 'border-border bg-background'
-                        }`}
-                      >
-                        <RadioGroupItem value={vehicle.id} id={vehicle.id} />
-                        <Label
-                          htmlFor={vehicle.id}
-                          className="flex-1 cursor-pointer flex items-center gap-3"
-                        >
-                          {vehicle.type === '2wheeler' ? (
-                            <Bike className="w-5 h-5 text-muted-foreground" />
-                          ) : (
-                            <Car className="w-5 h-5 text-muted-foreground" />
-                          )}
-                          <div>
-                            <p className="font-medium">
-                              {vehicle.brand} {vehicle.model}
-                            </p>
-                            <p className="text-sm text-muted-foreground">
-                              {vehicle.registration_no} • {vehicle.type === '2wheeler' ? 'Bike' : 'Car'}
-                            </p>
-                          </div>
-                        </Label>
-                      </div>
-                    ))}
-                  </RadioGroup>
+                    Go to Profile
+                  </Button>
                 </div>
+              ) : (
+                // Ride creation form
+                <>
+                  {/* Origin & Destination with Geocoding */}
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label className="text-base font-semibold flex items-center gap-2">
+                        <MapPin className="w-4 h-4 text-primary" />
+                        From *
+                      </Label>
+                      <LocationInput
+                        placeholder="Search pickup location..."
+                        value={originLocation?.address || ""}
+                        onLocationSelect={setOriginLocation}
+                        icon="origin"
+                      />
+                      {originLocation && (
+                        <p className="text-xs text-muted-foreground">
+                          📍 {originLocation.latitude.toFixed(4)}, {originLocation.longitude.toFixed(4)}
+                        </p>
+                      )}
+                    </div>
 
-                {/* Available Seats */}
-                {selectedVehicleData?.type !== '2wheeler' && (
-                  <div className="space-y-3">
-                    <Label className="text-base font-semibold flex items-center gap-2">
-                      <Users className="w-4 h-4 text-primary" />
-                      Available Seats *
-                    </Label>
-                    <div className="flex gap-2">
-                      {[1, 2, 3, 4].map((num) => (
-                        <Button
-                          key={num}
-                          type="button"
-                          variant={seatsAvailable === num ? "default" : "outline"}
-                          onClick={() => setSeatsAvailable(num)}
-                          disabled={num > maxSeats}
-                          className="flex-1 min-h-[44px]"
-                        >
-                          {num}
-                        </Button>
-                      ))}
+                    <div className="space-y-2">
+                      <Label className="text-base font-semibold flex items-center gap-2">
+                        <MapPin className="w-4 h-4 text-destructive" />
+                        To *
+                      </Label>
+                      <LocationInput
+                        placeholder="Search destination..."
+                        value={destinationLocation?.address || ""}
+                        onLocationSelect={setDestinationLocation}
+                        icon="destination"
+                      />
+                      {destinationLocation && (
+                        <p className="text-xs text-muted-foreground">
+                          📍 {destinationLocation.latitude.toFixed(4)}, {destinationLocation.longitude.toFixed(4)}
+                        </p>
+                      )}
                     </div>
                   </div>
+
+                  {/* Date & Time */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="date" className="text-base font-semibold flex items-center gap-2">
+                        <Calendar className="w-4 h-4 text-primary" />
+                        Date *
+                      </Label>
+                      <Input
+                        id="date"
+                        type="date"
+                        min={today}
+                        value={date}
+                        onChange={(e) => setDate(e.target.value)}
+                        className="min-h-[44px]"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="time" className="text-base font-semibold flex items-center gap-2">
+                        <Clock className="w-4 h-4 text-primary" />
+                        Time *
+                      </Label>
+                      <Input
+                        id="time"
+                        type="time"
+                        value={time}
+                        onChange={(e) => setTime(e.target.value)}
+                        className="min-h-[44px]"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Vehicle Selection */}
+                  <div className="space-y-3">
+                    <Label className="text-base font-semibold flex items-center gap-2">
+                      <Car className="w-4 h-4 text-primary" />
+                      Select Vehicle *
+                    </Label>
+                    <RadioGroup
+                      value={selectedVehicle}
+                      onValueChange={(value) => {
+                        setSelectedVehicle(value);
+                        // Reset seats if switching to bike
+                        const vehicle = verifiedVehicles.find(v => v.id === value);
+                        if (vehicle?.type === '2wheeler') {
+                          setSeatsAvailable(1);
+                        }
+                      }}
+                      className="space-y-2"
+                    >
+                      {verifiedVehicles.map((vehicle) => (
+                        <div
+                          key={vehicle.id}
+                          className={`flex items-center space-x-3 p-4 rounded-lg border-2 transition-colors ${
+                            selectedVehicle === vehicle.id
+                              ? 'border-primary bg-primary/5'
+                              : 'border-border bg-background'
+                          }`}
+                        >
+                          <RadioGroupItem value={vehicle.id} id={vehicle.id} />
+                          <Label
+                            htmlFor={vehicle.id}
+                            className="flex-1 cursor-pointer flex items-center gap-3"
+                          >
+                            {vehicle.type === '2wheeler' ? (
+                              <Bike className="w-5 h-5 text-muted-foreground" />
+                            ) : (
+                              <Car className="w-5 h-5 text-muted-foreground" />
+                            )}
+                            <div>
+                              <p className="font-medium">
+                                {vehicle.brand} {vehicle.model}
+                              </p>
+                              <p className="text-sm text-muted-foreground">
+                                {vehicle.registration_no} • {vehicle.type === '2wheeler' ? 'Bike' : 'Car'}
+                              </p>
+                            </div>
+                          </Label>
+                        </div>
+                      ))}
+                    </RadioGroup>
+                  </div>
+
+                  {/* Available Seats */}
+                  {selectedVehicleData?.type !== '2wheeler' && (
+                    <div className="space-y-3">
+                      <Label className="text-base font-semibold flex items-center gap-2">
+                        <Users className="w-4 h-4 text-primary" />
+                        Available Seats *
+                      </Label>
+                      <div className="flex gap-2">
+                        {[1, 2, 3, 4].map((num) => (
+                          <Button
+                            key={num}
+                            type="button"
+                            variant={seatsAvailable === num ? "default" : "outline"}
+                            onClick={() => setSeatsAvailable(num)}
+                            disabled={num > maxSeats}
+                            className="flex-1 min-h-[44px]"
+                          >
+                            {num}
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Price per KM */}
+                  <div className="space-y-2">
+                    <Label htmlFor="price" className="text-base font-semibold flex items-center gap-2">
+                      <IndianRupee className="w-4 h-4 text-primary" />
+                      Price per KM (₹) *
+                    </Label>
+                    <Input
+                      id="price"
+                      type="number"
+                      min="1"
+                      step="0.5"
+                      placeholder="Enter price per kilometer"
+                      value={pricePerKm}
+                      onChange={(e) => setPricePerKm(e.target.value)}
+                      className="min-h-[44px]"
+                    />
+                    <p className="text-sm text-muted-foreground">
+                      Suggested: ₹6-7/km for bikes, ₹10-12/km for cars
+                    </p>
+                  </div>
+
+                  {/* Submit Button */}
+                  <Button
+                    variant="action"
+                    onClick={handlePostRide}
+                    disabled={submitting || !originLocation || !destinationLocation || !date || !time || !selectedVehicle || !pricePerKm}
+                    className="w-full text-lg h-14 font-bold shadow-xl min-h-[56px]"
+                  >
+                    {submitting ? "Posting Ride..." : "🚀 Post Ride"}
+                  </Button>
+                </>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Nearby Ride Requests Section */}
+          {verifiedVehicles.length > 0 && (
+            <Card className="mt-6">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Send className="w-5 h-5 text-primary" />
+                  Ride Requests Near You
+                </CardTitle>
+                <CardDescription>
+                  Riders looking for a ride - accept to earn
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {loadingRequests ? (
+                  <div className="text-center py-6">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+                  </div>
+                ) : rideRequests.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Send className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                    <p>No ride requests at the moment</p>
+                    <p className="text-sm mt-2">Check back later or post your own ride</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {rideRequests.map((request) => (
+                      <div key={request.id} className="p-4 border rounded-lg hover:shadow-md transition-shadow">
+                        <div className="flex justify-between items-start gap-4">
+                          <div className="flex-1 space-y-2">
+                            <div className="flex items-center gap-2">
+                              <MapPin className="w-4 h-4 text-primary flex-shrink-0" />
+                              <span className="text-sm font-medium truncate">{request.origin_address}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <MapPin className="w-4 h-4 text-destructive flex-shrink-0" />
+                              <span className="text-sm truncate">{request.destination_address}</span>
+                            </div>
+                            <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
+                              <span className="flex items-center gap-1">
+                                <Calendar className="w-3 h-3" />
+                                {new Date(request.preferred_time).toLocaleDateString()}
+                              </span>
+                              <span className="flex items-center gap-1">
+                                <Clock className="w-3 h-3" />
+                                {new Date(request.preferred_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              </span>
+                              <span className="flex items-center gap-1">
+                                <Users className="w-3 h-3" />
+                                {request.seats_needed} seat{request.seats_needed > 1 ? 's' : ''}
+                              </span>
+                            </div>
+                          </div>
+                          <Button
+                            size="sm"
+                            onClick={() => handleAcceptRequest(request)}
+                            disabled={acceptingRequest === request.id}
+                            className="min-h-[36px]"
+                          >
+                            {acceptingRequest === request.id ? (
+                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary-foreground"></div>
+                            ) : (
+                              <>
+                                <Check className="w-4 h-4 mr-1" />
+                                Accept
+                              </>
+                            )}
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 )}
-
-                {/* Price per KM */}
-                <div className="space-y-2">
-                  <Label htmlFor="price" className="text-base font-semibold flex items-center gap-2">
-                    <IndianRupee className="w-4 h-4 text-primary" />
-                    Price per KM (₹) *
-                  </Label>
-                  <Input
-                    id="price"
-                    type="number"
-                    min="1"
-                    step="0.5"
-                    placeholder="Enter price per kilometer"
-                    value={pricePerKm}
-                    onChange={(e) => setPricePerKm(e.target.value)}
-                    className="min-h-[44px]"
-                  />
-                  <p className="text-sm text-muted-foreground">
-                    Suggested: ₹6-7/km for bikes, ₹10-12/km for cars
-                  </p>
-                </div>
-
-                {/* Submit Button */}
-                <Button
-                  variant="action"
-                  onClick={handlePostRide}
-                  disabled={submitting || !originLocation || !destinationLocation || !date || !time || !selectedVehicle || !pricePerKm}
-                  className="w-full text-lg h-14 font-bold shadow-xl min-h-[56px]"
-                >
-                  {submitting ? "Posting Ride..." : "🚀 Post Ride"}
-                </Button>
-              </>
-            )}
-          </CardContent>
-        </Card>
+              </CardContent>
+            </Card>
+          )}
+        </>
       ) : profile?.kyc_status === 'pending' ? (
         <Card>
           <CardHeader>
