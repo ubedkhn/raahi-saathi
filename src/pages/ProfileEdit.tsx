@@ -6,16 +6,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Camera, Upload, User } from "lucide-react";
+import { useProfile, useUpdateProfile } from "@/hooks/useProfile";
+import { ArrowLeft, Camera, Upload, User, Loader2 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const ProfileEdit = () => {
   const navigate = useNavigate();
-  const { toast } = useToast();
-  const [loading, setLoading] = useState(false);
+  const { data: cachedProfile, isLoading: profileLoading } = useProfile();
+  const updateProfile = useUpdateProfile();
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
-  const [profile, setProfile] = useState<{
+  const [formData, setFormData] = useState<{
     name: string;
     phone: string;
     gender: "male" | "female" | "other" | "";
@@ -31,40 +31,19 @@ const ProfileEdit = () => {
     avatar_url: "",
   });
 
+  // Initialize form with cached profile data
   useEffect(() => {
-    loadProfile();
-  }, []);
-
-  const loadProfile = async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', user.id)
-        .maybeSingle();
-
-      if (error) throw error;
-      if (data) {
-        setProfile({
-          name: data.name || "",
-          phone: data.phone || "",
-          gender: (data.gender as "male" | "female" | "other") || "",
-          date_of_birth: data.date_of_birth || "",
-          permanent_address: data.permanent_address || "",
-          avatar_url: data.avatar_url || "",
-        });
-      }
-    } catch (error: any) {
-      toast({
-        title: "Error loading profile",
-        description: error.message,
-        variant: "destructive",
+    if (cachedProfile) {
+      setFormData({
+        name: cachedProfile.name || "",
+        phone: cachedProfile.phone || "",
+        gender: (cachedProfile.gender as "male" | "female" | "other") || "",
+        date_of_birth: cachedProfile.date_of_birth || "",
+        permanent_address: cachedProfile.permanent_address || "",
+        avatar_url: cachedProfile.avatar_url || "",
       });
     }
-  };
+  }, [cachedProfile]);
 
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -88,58 +67,37 @@ const ProfileEdit = () => {
         .from('kyc_documents')
         .getPublicUrl(filePath);
 
-      setProfile({ ...profile, avatar_url: publicUrl });
-
-      toast({
-        title: "Avatar uploaded",
-        description: "Your profile picture has been updated",
-      });
+      setFormData({ ...formData, avatar_url: publicUrl });
     } catch (error: any) {
-      toast({
-        title: "Upload failed",
-        description: error.message,
-        variant: "destructive",
-      });
+      console.error('Upload failed:', error.message);
     } finally {
       setUploadingAvatar(false);
     }
   };
 
   const handleSave = async () => {
-    setLoading(true);
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Not authenticated");
-
-      const { error } = await supabase
-        .from('profiles')
-        .update({
-          name: profile.name,
-          phone: profile.phone,
-          gender: profile.gender || null,
-          date_of_birth: profile.date_of_birth || null,
-          permanent_address: profile.permanent_address,
-          avatar_url: profile.avatar_url,
-        })
-        .eq('id', user.id);
-
-      if (error) throw error;
-
-      toast({
-        title: "Profile updated",
-        description: "Your profile has been saved successfully",
-      });
-      navigate('/profile');
-    } catch (error: any) {
-      toast({
-        title: "Error updating profile",
-        description: error.message,
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
+    updateProfile.mutate(
+      {
+        name: formData.name,
+        phone: formData.phone,
+        gender: formData.gender || null,
+        date_of_birth: formData.date_of_birth || null,
+        permanent_address: formData.permanent_address,
+        avatar_url: formData.avatar_url,
+      },
+      {
+        onSuccess: () => navigate('/profile'),
+      }
+    );
   };
+
+  if (profileLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background p-4 pb-20">
@@ -161,7 +119,7 @@ const ProfileEdit = () => {
             {/* Avatar Section */}
             <div className="flex flex-col items-center space-y-4">
               <Avatar className="h-32 w-32">
-                <AvatarImage src={profile.avatar_url} />
+                <AvatarImage src={formData.avatar_url} />
                 <AvatarFallback>
                   <User className="h-16 w-16" />
                 </AvatarFallback>
@@ -220,8 +178,8 @@ const ProfileEdit = () => {
                 <Label htmlFor="name">Full Name</Label>
                 <Input
                   id="name"
-                  value={profile.name}
-                  onChange={(e) => setProfile({ ...profile, name: e.target.value })}
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   placeholder="Enter your full name"
                 />
               </div>
@@ -239,10 +197,10 @@ const ProfileEdit = () => {
                     placeholder="9876543210"
                     className="pl-12"
                     maxLength={10}
-                    value={profile.phone.replace(/^\+91/, '')}
+                    value={formData.phone.replace(/^\+91/, '')}
                     onChange={(e) => {
                       const digits = e.target.value.replace(/\D/g, '').slice(0, 10);
-                      setProfile({ ...profile, phone: `+91${digits}` });
+                      setFormData({ ...formData, phone: `+91${digits}` });
                     }}
                   />
                 </div>
@@ -250,7 +208,7 @@ const ProfileEdit = () => {
 
               <div>
                 <Label htmlFor="gender">Gender</Label>
-                <Select value={profile.gender} onValueChange={(value: "male" | "female" | "other") => setProfile({ ...profile, gender: value })}>
+                <Select value={formData.gender} onValueChange={(value: "male" | "female" | "other") => setFormData({ ...formData, gender: value })}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select gender" />
                   </SelectTrigger>
@@ -267,8 +225,8 @@ const ProfileEdit = () => {
                 <Input
                   id="dob"
                   type="date"
-                  value={profile.date_of_birth}
-                  onChange={(e) => setProfile({ ...profile, date_of_birth: e.target.value })}
+                  value={formData.date_of_birth}
+                  onChange={(e) => setFormData({ ...formData, date_of_birth: e.target.value })}
                 />
               </div>
 
@@ -276,8 +234,8 @@ const ProfileEdit = () => {
                 <Label htmlFor="address">Permanent Address</Label>
                 <Input
                   id="address"
-                  value={profile.permanent_address}
-                  onChange={(e) => setProfile({ ...profile, permanent_address: e.target.value })}
+                  value={formData.permanent_address}
+                  onChange={(e) => setFormData({ ...formData, permanent_address: e.target.value })}
                   placeholder="Enter your permanent address"
                 />
               </div>
@@ -286,10 +244,10 @@ const ProfileEdit = () => {
             <div className="flex gap-4">
               <Button
                 onClick={handleSave}
-                disabled={loading}
+                disabled={updateProfile.isPending}
                 className="flex-1"
               >
-                {loading ? "Saving..." : "Save Changes"}
+                {updateProfile.isPending ? "Saving..." : "Save Changes"}
               </Button>
               <Button
                 variant="outline"

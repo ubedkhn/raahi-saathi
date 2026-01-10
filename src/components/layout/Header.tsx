@@ -3,8 +3,8 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Shield } from "lucide-react";
-import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { useProfile } from "@/hooks/useProfile";
+import { useAdminStatus } from "@/hooks/useAdminStatus";
 
 interface RouteConfig {
   title: string;
@@ -27,38 +27,13 @@ const routeConfigs: Record<string, RouteConfig> = {
 const Header = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const [profile, setProfile] = useState<{ name?: string; avatar_url?: string } | null>(null);
-  const [isAdmin, setIsAdmin] = useState(false);
+  
+  // Use cached profile data - instant loading, auto-updates on changes
+  const { data: profile } = useProfile();
+  const { data: isAdmin } = useAdminStatus();
 
   const currentRoute = location.pathname;
   const config = routeConfigs[currentRoute] || { title: "Raahi", showBackButton: true };
-
-  useEffect(() => {
-    if (config.showAvatar) {
-      loadProfile();
-    }
-  }, [config.showAvatar]);
-
-  const loadProfile = async () => {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session) {
-      const { data } = await supabase
-        .from('profiles')
-        .select('name, avatar_url')
-        .eq('id', session.user.id)
-        .maybeSingle();
-      setProfile(data);
-
-      // Check if user has admin role
-      const { data: roleData } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", session.user.id)
-        .eq("role", "admin")
-        .maybeSingle();
-      setIsAdmin(!!roleData);
-    }
-  };
 
   const handleBack = () => {
     navigate(-1);
