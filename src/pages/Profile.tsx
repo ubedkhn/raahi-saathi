@@ -12,20 +12,19 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { useTheme } from "next-themes";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { useAdminStatus } from "@/hooks/useAdminStatus";
 import { 
-  User, Settings, Moon, Sun, Monitor, 
-  LogOut, Trash2, Edit, Save, X, Shield, Phone, 
+  User, Settings, LogOut, Trash2, Edit, Save, X, Shield, Phone, 
   Mail, Calendar, MapPin, Wallet, Star, Car, FileText, CheckCircle,
-  Plus, Bike
+  Plus, Bike, HelpCircle
 } from "lucide-react";
 
 const Profile = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { theme, setTheme } = useTheme();
+  const { data: isAdmin } = useAdminStatus();
   const [user, setUser] = useState<any>(null);
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -340,6 +339,12 @@ const Profile = () => {
                   <>
                     <div className="flex items-center gap-2 mb-2">
                       <h2 className="text-2xl font-bold">{profile?.name}</h2>
+                      {isAdmin && (
+                        <Badge variant="destructive" className="text-xs">
+                          <Shield className="w-3 h-3 mr-1" />
+                          ADMIN
+                        </Badge>
+                      )}
                       <Badge variant={profile?.kyc_status === 'verified' ? 'default' : 'secondary'}>
                         <Shield className="w-3 h-3 mr-1" />
                         {profile?.kyc_status}
@@ -372,36 +377,36 @@ const Profile = () => {
           </CardContent>
         </Card>
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {/* Stats Cards - Compact */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <Card className="hover-scale">
-            <CardContent className="pt-6 text-center">
-              <Car className="h-8 w-8 mx-auto mb-2 text-primary" />
-              <div className="text-2xl font-bold">{completedRides}</div>
+            <CardContent className="pt-4 pb-3 text-center">
+              <Car className="h-6 w-6 mx-auto mb-1 text-primary" />
+              <div className="text-xl font-bold">{completedRides}</div>
               <div className="text-xs text-muted-foreground">Rides Given</div>
             </CardContent>
           </Card>
           
           <Card className="hover-scale">
-            <CardContent className="pt-6 text-center">
-              <MapPin className="h-8 w-8 mx-auto mb-2 text-primary" />
-              <div className="text-2xl font-bold">{completedBookings}</div>
+            <CardContent className="pt-4 pb-3 text-center">
+              <MapPin className="h-6 w-6 mx-auto mb-1 text-primary" />
+              <div className="text-xl font-bold">{completedBookings}</div>
               <div className="text-xs text-muted-foreground">Rides Taken</div>
             </CardContent>
           </Card>
           
           <Card className="hover-scale">
-            <CardContent className="pt-6 text-center">
-              <Wallet className="h-8 w-8 mx-auto mb-2 text-success" />
-              <div className="text-2xl font-bold">₹{totalEarnings}</div>
+            <CardContent className="pt-4 pb-3 text-center">
+              <Wallet className="h-6 w-6 mx-auto mb-1 text-success" />
+              <div className="text-xl font-bold">₹{totalEarnings}</div>
               <div className="text-xs text-muted-foreground">Earned</div>
             </CardContent>
           </Card>
           
           <Card className="hover-scale">
-            <CardContent className="pt-6 text-center">
-              <Wallet className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
-              <div className="text-2xl font-bold">₹{totalSpent}</div>
+            <CardContent className="pt-4 pb-3 text-center">
+              <Wallet className="h-6 w-6 mx-auto mb-1 text-muted-foreground" />
+              <div className="text-xl font-bold">₹{totalSpent}</div>
               <div className="text-xs text-muted-foreground">Spent</div>
             </CardContent>
           </Card>
@@ -695,85 +700,53 @@ const Profile = () => {
           </TabsContent>
         </Tabs>
 
-        {/* Settings Card */}
+        {/* Quick Actions Card */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Settings className="h-5 w-5" />
-              Quick Settings
+              Quick Actions
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <Label className="text-base mb-3 block">Theme</Label>
-              <div className="grid grid-cols-3 gap-2">
-                <Button
-                  variant={theme === 'light' ? 'default' : 'outline'}
-                  onClick={() => setTheme('light')}
-                  className="flex-col h-auto py-3"
-                >
-                  <Sun className="h-5 w-5 mb-1" />
-                  <span className="text-xs">Light</span>
+          <CardContent className="space-y-2">
+            <Button onClick={() => navigate("/support")} variant="outline" className="w-full justify-start hover-scale">
+              <HelpCircle className="h-4 w-4 mr-2" />
+              Help & Support
+            </Button>
+            <Button onClick={() => navigate("/settings")} variant="outline" className="w-full justify-start hover-scale">
+              <Settings className="h-4 w-4 mr-2" />
+              Settings
+            </Button>
+            <Button onClick={handleLogout} variant="outline" className="w-full justify-start hover-scale">
+              <LogOut className="h-4 w-4 mr-2" />
+              Logout
+            </Button>
+            
+            <Separator className="my-3" />
+            
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive" className="w-full justify-start">
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete Account
                 </Button>
-                <Button
-                  variant={theme === 'dark' ? 'default' : 'outline'}
-                  onClick={() => setTheme('dark')}
-                  className="flex-col h-auto py-3"
-                >
-                  <Moon className="h-5 w-5 mb-1" />
-                  <span className="text-xs">Dark</span>
-                </Button>
-                <Button
-                  variant={theme === 'system' ? 'default' : 'outline'}
-                  onClick={() => setTheme('system')}
-                  className="flex-col h-auto py-3"
-                >
-                  <Monitor className="h-5 w-5 mb-1" />
-                  <span className="text-xs">System</span>
-                </Button>
-              </div>
-            </div>
-
-            <Separator />
-
-            <div className="space-y-2">
-              <Button onClick={() => navigate("/settings")} variant="outline" className="w-full justify-start hover-scale">
-                <Settings className="h-4 w-4 mr-2" />
-                More Settings
-              </Button>
-              <Button onClick={() => navigate("/support")} variant="outline" className="w-full justify-start hover-scale">
-                <Phone className="h-4 w-4 mr-2" />
-                Help & Support
-              </Button>
-              <Button onClick={handleLogout} variant="outline" className="w-full justify-start hover-scale">
-                <LogOut className="h-4 w-4 mr-2" />
-                Logout
-              </Button>
-              
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button variant="destructive" className="w-full justify-start">
-                    <Trash2 className="h-4 w-4 mr-2" />
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This action cannot be undone. This will permanently delete your
+                    account and remove your data from our servers.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleDeleteAccount}>
                     Delete Account
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      This action cannot be undone. This will permanently delete your
-                      account and remove your data from our servers.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction onClick={handleDeleteAccount}>
-                      Delete Account
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-            </div>
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </CardContent>
         </Card>
     </div>
