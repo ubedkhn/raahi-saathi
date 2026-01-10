@@ -121,33 +121,31 @@ const Dashboard = () => {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-8">
-      <div className="mb-8">
-        <div className="flex items-center gap-2 mb-2">
-          <h2 className="text-3xl font-bold">Welcome, {profile?.name}!</h2>
+    <div className="max-w-7xl mx-auto px-4 py-6">
+      {/* Mobile-optimized header */}
+      <div className="mb-6">
+        <div className="flex items-center gap-2 mb-1">
+          <h2 className="text-xl font-bold">Welcome, {profile?.name}!</h2>
           {profile?.kyc_status === 'verified' ? (
-            <Badge variant="default">
+            <Badge variant="default" className="text-xs">
               <Shield className="w-3 h-3 mr-1" />
               Verified
             </Badge>
           ) : profile?.kyc_status === 'pending' ? (
-            <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
-              <Shield className="w-3 h-3 mr-1" />
-              Verification Pending
+            <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200 text-xs">
+              Pending
             </Badge>
           ) : profile?.kyc_status === 'rejected' ? (
-            <Badge variant="destructive">
-              <Shield className="w-3 h-3 mr-1" />
+            <Badge variant="destructive" className="text-xs">
               Rejected
             </Badge>
           ) : (
-            <Badge variant="outline">
-              <Shield className="w-3 h-3 mr-1" />
+            <Badge variant="outline" className="text-xs">
               Complete KYC
             </Badge>
           )}
         </div>
-        <p className="text-muted-foreground">Where would you like to go today?</p>
+        <p className="text-sm text-muted-foreground">Where would you like to go today?</p>
       </div>
 
       <Tabs defaultValue="find" className="space-y-6">
@@ -204,18 +202,22 @@ const Dashboard = () => {
                     <p>No rides nearby right now</p>
                   </div>
                 ) : (
-                  <div className="space-y-3">
+                  <div className="flex overflow-x-auto gap-4 pb-2 snap-x snap-mandatory -mx-2 px-2">
                     {nearbyRides.map((ride) => (
-                      <div key={ride.id} className="flex items-center justify-between p-3 border rounded-lg hover:shadow-md transition-shadow cursor-pointer" onClick={() => navigate('/search-rides')}>
-                        <div className="flex-1">
-                          <div className="font-medium">{ride.origin_address}</div>
-                          <div className="text-sm text-muted-foreground">→ {ride.destination_address}</div>
-                          <div className="text-xs text-muted-foreground mt-1">
+                      <div 
+                        key={ride.id} 
+                        className="min-w-[280px] snap-start flex-shrink-0 p-4 border rounded-lg hover:shadow-md transition-shadow cursor-pointer bg-card" 
+                        onClick={() => navigate('/search-rides')}
+                      >
+                        <div className="font-medium truncate">{ride.origin_address}</div>
+                        <div className="text-sm text-muted-foreground truncate">→ {ride.destination_address}</div>
+                        <div className="flex items-center justify-between mt-2">
+                          <div className="text-xs text-muted-foreground">
                             <Clock className="w-3 h-3 inline mr-1" />
                             {new Date(ride.start_time).toLocaleString()}
                           </div>
+                          <Badge>₹{ride.price_per_km}/km</Badge>
                         </div>
-                        <Badge>₹{ride.price_per_km}/km</Badge>
                       </div>
                     ))}
                   </div>

@@ -16,6 +16,7 @@ interface Booking {
   rider_current_lng?: number;
   distance_remaining?: number;
   rides: {
+    driver_id: string;
     profiles: {
       name: string;
     };
@@ -28,9 +29,11 @@ interface Booking {
 
 interface TripInProgressMapProps {
   booking: Booking;
+  isDriver?: boolean;
+  onEndRide?: () => void;
 }
 
-const TripInProgressMap = ({ booking }: TripInProgressMapProps) => {
+const TripInProgressMap = ({ booking, isDriver = false, onEndRide }: TripInProgressMapProps) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
   const currentLocationMarker = useRef<mapboxgl.Marker | null>(null);

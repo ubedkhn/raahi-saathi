@@ -25,11 +25,11 @@ import NotFound from "./pages/NotFound";
 import SOS from "./pages/SOS";
 import RecentRides from "./pages/RecentRides";
 import PostRide from "./pages/PostRide";
+import ManageRide from "./pages/ManageRide";
 import Chats from "./pages/Chats";
 import Support from "./pages/Support";
 import Wallet from "./pages/Wallet";
 import Passbook from "./pages/Passbook";
-import EmergencyContacts from "./pages/EmergencyContacts";
 
 // Auth-aware root route component
 const RootRoute = () => {
@@ -87,6 +87,7 @@ const App = () => (
               <Route path="/sos" element={<SOS />} />
               <Route path="/recent-rides" element={<RecentRides />} />
               <Route path="/post-ride" element={<PostRide />} />
+              <Route path="/manage-ride/:bookingId" element={<ManageRide />} />
               <Route path="/chats" element={<Chats />} />
               <Route path="/support" element={<Support />} />
               <Route path="/wallet" element={<Wallet />} />
