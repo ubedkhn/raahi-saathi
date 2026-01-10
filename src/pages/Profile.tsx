@@ -1,12 +1,10 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -15,25 +13,44 @@ import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useAdminStatus } from "@/hooks/useAdminStatus";
+import { useAuth } from "@/hooks/useAuth";
+import { useProfile } from "@/hooks/useProfile";
+import { useMyRides, useMyBookings, useMyPayments } from "@/hooks/useRides";
+import { useMyVehicles, useAddVehicle, useDeleteVehicle } from "@/hooks/useVehicles";
 import { 
   User, Settings, LogOut, Trash2, Edit, Save, X, Shield, Phone, 
   Mail, Calendar, MapPin, Wallet, Star, Car, FileText, CheckCircle,
   Plus, Bike, HelpCircle
 } from "lucide-react";
 
+// Helper to display KYC status properly
+const getKycStatusDisplay = (status: string | null | undefined) => {
+  switch (status) {
+    case 'verified':
+      return { label: 'Verified', variant: 'default' as const };
+    case 'pending':
+      return { label: 'Verification Pending', variant: 'secondary' as const };
+    case 'rejected':
+      return { label: 'Rejected', variant: 'destructive' as const };
+    default:
+      return { label: 'Complete KYC', variant: 'outline' as const };
+  }
+};
+
 const Profile = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { user, signOut, loading: authLoading } = useAuth({ requireAuth: true });
+  const { data: profile, isLoading: profileLoading } = useProfile();
   const { data: isAdmin } = useAdminStatus();
-  const [user, setUser] = useState<any>(null);
-  const [profile, setProfile] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  const [editing, setEditing] = useState(false);
-  const [editData, setEditData] = useState<any>({});
-  const [rides, setRides] = useState<any[]>([]);
-  const [bookings, setBookings] = useState<any[]>([]);
-  const [payments, setPayments] = useState<any[]>([]);
-  const [vehicles, setVehicles] = useState<any[]>([]);
+  const { data: rides = [] } = useMyRides();
+  const { data: bookings = [] } = useMyBookings();
+  const { data: payments = [] } = useMyPayments();
+  const { data: vehicles = [] } = useMyVehicles();
+  
+  const addVehicle = useAddVehicle();
+  const deleteVehicle = useDeleteVehicle();
+
   const [vehicleDialogOpen, setVehicleDialogOpen] = useState(false);
   const [vehicleForm, setVehicleForm] = useState({
     type: '4wheeler' as '2wheeler' | '4wheeler',
@@ -41,135 +58,16 @@ const Profile = () => {
     model: '',
     registration_no: '',
   });
-  const [vehicleSubmitting, setVehicleSubmitting] = useState(false);
-
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  const loadData = async () => {
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (!session) {
-        navigate("/auth");
-        return;
-      }
-
-      setUser(session.user);
-      
-      const { data: profileData, error: profileError } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', session.user.id)
-        .maybeSingle();
-
-      if (profileError) throw profileError;
-      
-      if (profileData) {
-        setProfile(profileData);
-        setEditData({
-          name: profileData.name || "",
-          phone: profileData.phone || "",
-          permanent_address: profileData.permanent_address || "",
-          aadhaar_number: profileData.aadhaar_number || "",
-          driving_license_number: profileData.driving_license_number || "",
-        });
-      }
-
-      // Load rides (as driver)
-      const { data: ridesData } = await supabase
-        .from('rides')
-        .select('*')
-        .eq('driver_id', session.user.id)
-        .order('created_at', { ascending: false });
-      setRides(ridesData || []);
-
-      // Load bookings (as rider)
-      const { data: bookingsData } = await supabase
-        .from('bookings')
-        .select('*, rides(*)')
-        .eq('rider_id', session.user.id)
-        .order('created_at', { ascending: false });
-      setBookings(bookingsData || []);
-
-      // Load payments
-      const { data: paymentsData } = await supabase
-        .from('payments')
-        .select('*')
-        .or(`rider_id.eq.${session.user.id},driver_id.eq.${session.user.id}`)
-        .order('created_at', { ascending: false });
-      setPayments(paymentsData || []);
-
-      // Load vehicles
-      const { data: vehiclesData } = await supabase
-        .from('vehicles')
-        .select('*')
-        .eq('user_id', session.user.id)
-        .order('created_at', { ascending: false });
-      setVehicles(vehiclesData || []);
-
-    } catch (error: any) {
-      console.error('Error:', error);
-      toast({
-        title: "Error loading profile",
-        description: error.message,
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleSave = async () => {
-    try {
-      const { error } = await supabase
-        .from('profiles')
-        .update({
-          name: editData.name,
-          phone: editData.phone,
-          permanent_address: editData.permanent_address,
-          aadhaar_number: editData.aadhaar_number,
-          driving_license_number: editData.driving_license_number,
-        })
-        .eq('id', user.id);
-
-      if (error) throw error;
-
-      setProfile({ ...profile, ...editData });
-      setEditing(false);
-      toast({
-        title: "Profile updated",
-        description: "Your changes have been saved.",
-      });
-    } catch (error: any) {
-      toast({
-        title: "Error updating profile",
-        description: error.message,
-        variant: "destructive",
-      });
-    }
-  };
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
-    navigate("/");
+    await signOut();
   };
 
   const handleDeleteAccount = async () => {
-    try {
-      // This would need backend implementation
-      toast({
-        title: "Contact support",
-        description: "Please contact support to delete your account.",
-      });
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
-    }
+    toast({
+      title: "Contact support",
+      description: "Please contact support to delete your account.",
+    });
   };
 
   const handleAddVehicle = async () => {
@@ -182,51 +80,20 @@ const Profile = () => {
       return;
     }
 
-    setVehicleSubmitting(true);
-    try {
-      const { error } = await supabase
-        .from('vehicles')
-        .insert({
-          user_id: user.id,
-          type: vehicleForm.type,
-          brand: vehicleForm.brand,
-          model: vehicleForm.model,
-          registration_no: vehicleForm.registration_no.toUpperCase(),
-          insurance_expiry: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 1 year from now
-          verified: true, // Auto-verify for MVP
-        });
-
-      if (error) throw error;
-
-      toast({
-        title: "Vehicle Added! 🚗",
-        description: "Your vehicle has been added successfully.",
-      });
-
-      // Reset form and close dialog
-      setVehicleForm({ type: '4wheeler', brand: '', model: '', registration_no: '' });
-      setVehicleDialogOpen(false);
-
-      // Refresh vehicles list
-      const { data: vehiclesData } = await supabase
-        .from('vehicles')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
-      setVehicles(vehiclesData || []);
-
-    } catch (error: any) {
-      toast({
-        title: "Failed to add vehicle",
-        description: error.message,
-        variant: "destructive",
-      });
-    } finally {
-      setVehicleSubmitting(false);
-    }
+    addVehicle.mutate(vehicleForm, {
+      onSuccess: () => {
+        setVehicleForm({ type: '4wheeler', brand: '', model: '', registration_no: '' });
+        setVehicleDialogOpen(false);
+      },
+    });
   };
 
-  if (loading) {
+  const handleDeleteVehicle = (vehicleId: string) => {
+    deleteVehicle.mutate(vehicleId);
+  };
+
+  // Show loading only if we have no cached profile data
+  if (authLoading || (profileLoading && !profile)) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center animate-fade-in">
         <div className="text-center">
@@ -242,6 +109,8 @@ const Profile = () => {
   const totalEarnings = payments.filter(p => p.driver_id === user?.id && p.status === 'completed').reduce((sum, p) => sum + Number(p.amount), 0);
   const totalSpent = payments.filter(p => p.rider_id === user?.id && p.status === 'completed').reduce((sum, p) => sum + Number(p.amount), 0);
 
+  const kycStatus = getKycStatusDisplay(profile?.kyc_status);
+
   return (
     <div className="max-w-7xl mx-auto px-4 py-6 space-y-6 animate-fade-in">
         {/* Profile Header Card */}
@@ -256,122 +125,39 @@ const Profile = () => {
               </Avatar>
               
               <div className="flex-1">
-                {editing ? (
-                  <div className="space-y-4">
-                    <div className="grid md:grid-cols-2 gap-4">
-                      <div>
-                        <Label htmlFor="name">Full Name</Label>
-                        <Input
-                          id="name"
-                          value={editData.name}
-                          onChange={(e) => setEditData({ ...editData, name: e.target.value })}
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="phone">Phone Number</Label>
-                        <Input
-                          id="phone"
-                          value={editData.phone}
-                          onChange={(e) => setEditData({ ...editData, phone: e.target.value })}
-                        />
-                      </div>
-                    </div>
-                    <div>
-                      <Label htmlFor="address">Permanent Address</Label>
-                      <Textarea
-                        id="address"
-                        value={editData.permanent_address}
-                        onChange={(e) => setEditData({ ...editData, permanent_address: e.target.value })}
-                        rows={2}
-                      />
-                    </div>
-                    <Separator />
-                    <div className="space-y-4">
-                      <h3 className="font-semibold flex items-center gap-2">
-                        <Shield className="w-4 h-4" />
-                        KYC Documents
-                      </h3>
-                      <div className="grid md:grid-cols-2 gap-4">
-                        <div>
-                          <Label htmlFor="aadhaar">Aadhaar Number</Label>
-                          <Input
-                            id="aadhaar"
-                            value={editData.aadhaar_number}
-                            onChange={(e) => setEditData({ ...editData, aadhaar_number: e.target.value })}
-                            placeholder="XXXX-XXXX-XXXX"
-                            maxLength={12}
-                          />
-                          {profile?.aadhaar_verified && <span className="text-xs text-success flex items-center gap-1 mt-1"><CheckCircle className="w-3 h-3" /> Verified</span>}
-                        </div>
-                        <div>
-                          <Label htmlFor="license">Driving License Number</Label>
-                          <Input
-                            id="license"
-                            value={editData.driving_license_number}
-                            onChange={(e) => setEditData({ ...editData, driving_license_number: e.target.value })}
-                            placeholder="DL-XXXXXXXXXX"
-                          />
-                          {profile?.driving_license_verified && <span className="text-xs text-success flex items-center gap-1 mt-1"><CheckCircle className="w-3 h-3" /> Verified</span>}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button onClick={handleSave} size="sm">
-                        <Save className="h-4 w-4 mr-2" />
-                        Save Changes
-                      </Button>
-                      <Button onClick={() => { 
-                        setEditing(false); 
-                        setEditData({ 
-                          name: profile?.name || "", 
-                          phone: profile?.phone || "", 
-                          permanent_address: profile?.permanent_address || "", 
-                          aadhaar_number: profile?.aadhaar_number || "", 
-                          driving_license_number: profile?.driving_license_number || "" 
-                        }); 
-                      }} variant="outline" size="sm">
-                        <X className="h-4 w-4 mr-2" />
-                        Cancel
-                      </Button>
-                    </div>
+                <div className="flex items-center gap-2 mb-2">
+                  <h2 className="text-2xl font-bold">{profile?.name}</h2>
+                  {isAdmin && (
+                    <Badge variant="destructive" className="text-xs">
+                      <Shield className="w-3 h-3 mr-1" />
+                      ADMIN
+                    </Badge>
+                  )}
+                  <Badge variant={kycStatus.variant}>
+                    <Shield className="w-3 h-3 mr-1" />
+                    {kycStatus.label}
+                  </Badge>
+                </div>
+                <div className="space-y-2 text-sm">
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <Phone className="h-4 w-4" />
+                    <span>{profile?.phone}</span>
                   </div>
-                ) : (
-                  <>
-                    <div className="flex items-center gap-2 mb-2">
-                      <h2 className="text-2xl font-bold">{profile?.name}</h2>
-                      {isAdmin && (
-                        <Badge variant="destructive" className="text-xs">
-                          <Shield className="w-3 h-3 mr-1" />
-                          ADMIN
-                        </Badge>
-                      )}
-                      <Badge variant={profile?.kyc_status === 'verified' ? 'default' : 'secondary'}>
-                        <Shield className="w-3 h-3 mr-1" />
-                        {profile?.kyc_status}
-                      </Badge>
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <Mail className="h-4 w-4" />
+                    <span>{user?.email}</span>
+                  </div>
+                  {profile?.permanent_address && (
+                    <div className="flex items-start gap-2 text-muted-foreground">
+                      <MapPin className="h-4 w-4 mt-0.5" />
+                      <span>{profile.permanent_address}</span>
                     </div>
-                    <div className="space-y-2 text-sm">
-                      <div className="flex items-center gap-2 text-muted-foreground">
-                        <Phone className="h-4 w-4" />
-                        <span>{profile?.phone}</span>
-                      </div>
-                      <div className="flex items-center gap-2 text-muted-foreground">
-                        <Mail className="h-4 w-4" />
-                        <span>{user?.email}</span>
-                      </div>
-                      {profile?.permanent_address && (
-                        <div className="flex items-start gap-2 text-muted-foreground">
-                          <MapPin className="h-4 w-4 mt-0.5" />
-                          <span>{profile.permanent_address}</span>
-                        </div>
-                      )}
-                    </div>
-                    <Button onClick={() => navigate('/profile/edit')} variant="outline" size="sm" className="mt-3">
-                      <Edit className="h-4 w-4 mr-2" />
-                      Edit Profile
-                    </Button>
-                  </>
-                )}
+                  )}
+                </div>
+                <Button onClick={() => navigate('/profile/edit')} variant="outline" size="sm" className="mt-3">
+                  <Edit className="h-4 w-4 mr-2" />
+                  Edit Profile
+                </Button>
               </div>
             </div>
           </CardContent>
@@ -504,9 +290,9 @@ const Profile = () => {
                   <Button 
                     onClick={handleAddVehicle} 
                     className="w-full min-h-[44px]"
-                    disabled={vehicleSubmitting}
+                    disabled={addVehicle.isPending}
                   >
-                    {vehicleSubmitting ? (
+                    {addVehicle.isPending ? (
                       <>
                         <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
                         Saving...
@@ -569,16 +355,7 @@ const Profile = () => {
                           </AlertDialogHeader>
                           <AlertDialogFooter>
                             <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction onClick={async () => {
-                              try {
-                                const { error } = await supabase.from('vehicles').delete().eq('id', vehicle.id);
-                                if (error) throw error;
-                                setVehicles(vehicles.filter(v => v.id !== vehicle.id));
-                                toast({ title: "Vehicle deleted" });
-                              } catch (e: any) {
-                                toast({ title: "Error", description: e.message, variant: "destructive" });
-                              }
-                            }}>
+                            <AlertDialogAction onClick={() => handleDeleteVehicle(vehicle.id)}>
                               Delete
                             </AlertDialogAction>
                           </AlertDialogFooter>
