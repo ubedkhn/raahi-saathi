@@ -7,10 +7,12 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { Key, HelpCircle, Mail, Info, Shield } from "lucide-react";
+import { Key, HelpCircle, Mail, Info, Shield, Sun, Moon, Monitor, Palette } from "lucide-react";
 import { toast } from "sonner";
+import { useTheme } from "next-themes";
 
 const Settings = () => {
+  const { theme, setTheme } = useTheme();
   const [loading, setLoading] = useState(false);
   const [passwordData, setPasswordData] = useState({
     currentPassword: "",
@@ -98,13 +100,60 @@ const Settings = () => {
         <p className="text-muted-foreground">Manage your account settings and preferences</p>
       </div>
 
-      <Tabs defaultValue="password" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-4">
+      <Tabs defaultValue="appearance" className="space-y-6">
+        <TabsList className="grid w-full grid-cols-5">
+          <TabsTrigger value="appearance" className="min-h-[44px]">Theme</TabsTrigger>
           <TabsTrigger value="password" className="min-h-[44px]">Password</TabsTrigger>
           <TabsTrigger value="help" className="min-h-[44px]">Help</TabsTrigger>
           <TabsTrigger value="contact" className="min-h-[44px]">Contact</TabsTrigger>
           <TabsTrigger value="about" className="min-h-[44px]">About</TabsTrigger>
         </TabsList>
+
+        {/* Appearance / Theme */}
+        <TabsContent value="appearance">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Palette className="w-5 h-5" />
+                Appearance
+              </CardTitle>
+              <CardDescription>
+                Customize how Raahi looks on your device
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <Label className="text-base mb-3 block">Theme</Label>
+                <div className="grid grid-cols-3 gap-3">
+                  <Button
+                    variant={theme === 'light' ? 'default' : 'outline'}
+                    onClick={() => setTheme('light')}
+                    className="flex-col h-auto py-4"
+                  >
+                    <Sun className="h-6 w-6 mb-2" />
+                    <span className="text-sm">Light</span>
+                  </Button>
+                  <Button
+                    variant={theme === 'dark' ? 'default' : 'outline'}
+                    onClick={() => setTheme('dark')}
+                    className="flex-col h-auto py-4"
+                  >
+                    <Moon className="h-6 w-6 mb-2" />
+                    <span className="text-sm">Dark</span>
+                  </Button>
+                  <Button
+                    variant={theme === 'system' ? 'default' : 'outline'}
+                    onClick={() => setTheme('system')}
+                    className="flex-col h-auto py-4"
+                  >
+                    <Monitor className="h-6 w-6 mb-2" />
+                    <span className="text-sm">System</span>
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
 
         {/* Change Password */}
         <TabsContent value="password">
