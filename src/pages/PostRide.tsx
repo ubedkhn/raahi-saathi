@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -9,31 +9,32 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Shield, Upload, CheckCircle, AlertCircle, Car, MapPin, Calendar, Clock, Users, IndianRupee, Bike } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { LocationInput, LocationData } from "@/components/common";
-
-interface Vehicle {
-  id: string;
-  brand: string;
-  model: string;
-  registration_no: string;
-  type: '2wheeler' | '4wheeler';
-}
+import { useAuth } from "@/hooks/useAuth";
+import { useProfile, useUpdateProfile } from "@/hooks/useProfile";
+import { useMyVehicles } from "@/hooks/useVehicles";
+import { useQueryClient } from "@tanstack/react-query";
 
 const PostRide = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [user, setUser] = useState<any>(null);
-  const [profile, setProfile] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+  const { user, loading: authLoading } = useAuth({ requireAuth: true });
+  const { data: profile, isLoading: profileLoading } = useProfile();
+  const { data: vehicles = [] } = useMyVehicles();
+  const updateProfile = useUpdateProfile();
+  
+  // Filter to only verified vehicles
+  const verifiedVehicles = vehicles.filter(v => v.verified);
   
   // KYC form states
-  const [aadhaarNumber, setAadhaarNumber] = useState("");
+  const [aadhaarNumber, setAadhaarNumber] = useState(profile?.aadhaar_number || "");
   const [drivingLicenseFile, setDrivingLicenseFile] = useState<File | null>(null);
   const [vehicleRegFile, setVehicleRegFile] = useState<File | null>(null);
   const [vehiclePhotoFile, setVehiclePhotoFile] = useState<File | null>(null);
   const [platePlotoFile, setPlatePlotoFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
 
-  // Ride form states - now storing full location data with coordinates
+  // Ride form states
   const [originLocation, setOriginLocation] = useState<LocationData | null>(null);
   const [destinationLocation, setDestinationLocation] = useState<LocationData | null>(null);
   const [date, setDate] = useState("");
@@ -41,58 +42,7 @@ const PostRide = () => {
   const [selectedVehicle, setSelectedVehicle] = useState("");
   const [seatsAvailable, setSeatsAvailable] = useState(1);
   const [pricePerKm, setPricePerKm] = useState("");
-  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [submitting, setSubmitting] = useState(false);
-
-  useEffect(() => {
-    checkUser();
-  }, []);
-
-  const checkUser = async () => {
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (!session) {
-        navigate("/auth");
-        return;
-      }
-
-      setUser(session.user);
-      
-      const { data: profileData, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', session.user.id)
-        .maybeSingle();
-
-      if (error) throw error;
-      
-      if (profileData) {
-        setProfile(profileData);
-        setAadhaarNumber(profileData.aadhaar_number || "");
-      }
-
-      // Fetch user's verified vehicles
-      const { data: vehiclesData } = await supabase
-        .from('vehicles')
-        .select('id, brand, model, registration_no, type')
-        .eq('user_id', session.user.id)
-        .eq('verified', true);
-
-      if (vehiclesData) {
-        setVehicles(vehiclesData as Vehicle[]);
-      }
-    } catch (error: any) {
-      console.error('Error:', error);
-      toast({
-        title: "Error loading profile",
-        description: error.message,
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleKYCSubmit = async () => {
     if (!aadhaarNumber || aadhaarNumber.length !== 12) {
@@ -133,9 +83,7 @@ const PostRide = () => {
       
       const { error: uploadError1 } = await supabase.storage
         .from('kyc_documents')
-        .upload(licensePath, drivingLicenseFile, { 
-          upsert: true 
-        });
+        .upload(licensePath, drivingLicenseFile, { upsert: true });
 
       if (uploadError1) throw uploadError1;
 
@@ -149,9 +97,7 @@ const PostRide = () => {
       
       const { error: uploadError2 } = await supabase.storage
         .from('kyc_documents')
-        .upload(regPath, vehicleRegFile, { 
-          upsert: true 
-        });
+        .upload(regPath, vehicleRegFile, { upsert: true });
 
       if (uploadError2) throw uploadError2;
 
@@ -161,9 +107,7 @@ const PostRide = () => {
       
       const { error: uploadError3 } = await supabase.storage
         .from('kyc_documents')
-        .upload(photoPath, vehiclePhotoFile, { 
-          upsert: true 
-        });
+        .upload(photoPath, vehiclePhotoFile, { upsert: true });
 
       if (uploadError3) throw uploadError3;
 
@@ -173,13 +117,11 @@ const PostRide = () => {
       
       const { error: uploadError4 } = await supabase.storage
         .from('kyc_documents')
-        .upload(platePath, platePlotoFile, { 
-          upsert: true 
-        });
+        .upload(platePath, platePlotoFile, { upsert: true });
 
       if (uploadError4) throw uploadError4;
 
-      // Update profile with KYC data
+      // Update profile with KYC data using the mutation hook
       const { error: updateError } = await supabase
         .from('profiles')
         .update({
@@ -191,13 +133,14 @@ const PostRide = () => {
 
       if (updateError) throw updateError;
 
+      // Invalidate profile cache to reflect changes
+      queryClient.invalidateQueries({ queryKey: ['profile'] });
+
       toast({
         title: "KYC Submitted",
         description: "Your documents are under review. You'll be notified once verified.",
       });
 
-      // Refresh profile
-      await checkUser();
     } catch (error: any) {
       toast({
         title: "Upload failed",
@@ -279,8 +222,7 @@ const PostRide = () => {
     setSubmitting(true);
 
     try {
-      const { data: { user: currentUser } } = await supabase.auth.getUser();
-      if (!currentUser) throw new Error("Not authenticated");
+      if (!user) throw new Error("Not authenticated");
 
       // Combine date + time into ISO timestamp
       const startTime = new Date(`${date}T${time}`).toISOString();
@@ -289,7 +231,7 @@ const PostRide = () => {
       const { error } = await supabase
         .from('rides')
         .insert({
-          driver_id: currentUser.id,
+          driver_id: user.id,
           vehicle_id: selectedVehicle,
           origin_address: originLocation.address,
           destination_address: destinationLocation.address,
@@ -304,6 +246,9 @@ const PostRide = () => {
         });
 
       if (error) throw error;
+
+      // Invalidate rides cache
+      queryClient.invalidateQueries({ queryKey: ['my-rides'] });
 
       toast({
         title: "Ride Posted Successfully! 🎉",
@@ -327,10 +272,11 @@ const PostRide = () => {
   const today = new Date().toISOString().split('T')[0];
 
   // Get selected vehicle type for seat options
-  const selectedVehicleData = vehicles.find(v => v.id === selectedVehicle);
+  const selectedVehicleData = verifiedVehicles.find(v => v.id === selectedVehicle);
   const maxSeats = selectedVehicleData?.type === '2wheeler' ? 1 : 4;
 
-  if (loading) {
+  // Show loading only if we have no cached profile data
+  if (authLoading || (profileLoading && !profile)) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
@@ -353,7 +299,7 @@ const PostRide = () => {
             <CardDescription>Share your journey and earn money</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6 pt-6">
-            {vehicles.length === 0 ? (
+            {verifiedVehicles.length === 0 ? (
               // No verified vehicles message
               <div className="text-center py-8">
                 <AlertCircle className="w-16 h-16 mx-auto mb-4 text-warning" />
@@ -454,14 +400,14 @@ const PostRide = () => {
                     onValueChange={(value) => {
                       setSelectedVehicle(value);
                       // Reset seats if switching to bike
-                      const vehicle = vehicles.find(v => v.id === value);
+                      const vehicle = verifiedVehicles.find(v => v.id === value);
                       if (vehicle?.type === '2wheeler') {
                         setSeatsAvailable(1);
                       }
                     }}
                     className="space-y-2"
                   >
-                    {vehicles.map((vehicle) => (
+                    {verifiedVehicles.map((vehicle) => (
                       <div
                         key={vehicle.id}
                         className={`flex items-center space-x-3 p-4 rounded-lg border-2 transition-colors ${
