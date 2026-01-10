@@ -546,13 +546,45 @@ const Profile = () => {
                         <div className="text-sm text-muted-foreground">{vehicle.registration_no}</div>
                       </div>
                     </div>
-                    <Badge variant={vehicle.verified ? 'default' : 'secondary'}>
-                      {vehicle.verified ? (
-                        <><CheckCircle className="w-3 h-3 mr-1" /> Verified</>
-                      ) : (
-                        'Pending'
-                      )}
-                    </Badge>
+                    <div className="flex items-center gap-2">
+                      <Badge variant={vehicle.verified ? 'default' : 'secondary'}>
+                        {vehicle.verified ? (
+                          <><CheckCircle className="w-3 h-3 mr-1" /> Verified</>
+                        ) : (
+                          'Pending'
+                        )}
+                      </Badge>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive">
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Delete Vehicle?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              This will remove {vehicle.brand} {vehicle.model} from your vehicles.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction onClick={async () => {
+                              try {
+                                const { error } = await supabase.from('vehicles').delete().eq('id', vehicle.id);
+                                if (error) throw error;
+                                setVehicles(vehicles.filter(v => v.id !== vehicle.id));
+                                toast({ title: "Vehicle deleted" });
+                              } catch (e: any) {
+                                toast({ title: "Error", description: e.message, variant: "destructive" });
+                              }
+                            }}>
+                              Delete
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
                   </div>
                 ))}
               </div>
