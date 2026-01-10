@@ -1,7 +1,8 @@
 import { useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { ArrowLeft } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { ArrowLeft, Shield } from "lucide-react";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -27,6 +28,7 @@ const Header = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [profile, setProfile] = useState<{ name?: string; avatar_url?: string } | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   const currentRoute = location.pathname;
   const config = routeConfigs[currentRoute] || { title: "Raahi", showBackButton: true };
@@ -46,6 +48,15 @@ const Header = () => {
         .eq('id', session.user.id)
         .maybeSingle();
       setProfile(data);
+
+      // Check if user has admin role
+      const { data: roleData } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", session.user.id)
+        .eq("role", "admin")
+        .maybeSingle();
+      setIsAdmin(!!roleData);
     }
   };
 
@@ -82,8 +93,18 @@ const Header = () => {
           {config.title}
         </h1>
 
-        {/* Right - Avatar or Spacer */}
-        <div className="w-10">
+        {/* Right - Admin Badge + Avatar */}
+        <div className="flex items-center gap-2">
+          {isAdmin && config.showAvatar && (
+            <Badge 
+              variant="default" 
+              className="bg-primary text-primary-foreground text-xs px-2 py-0.5 cursor-pointer"
+              onClick={() => navigate('/admin')}
+            >
+              <Shield className="w-3 h-3 mr-1" />
+              Admin
+            </Badge>
+          )}
           {config.showAvatar && profile && (
             <Avatar 
               className="h-9 w-9 cursor-pointer active:opacity-80"
