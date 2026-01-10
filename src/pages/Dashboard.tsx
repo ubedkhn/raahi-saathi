@@ -14,6 +14,7 @@ const Dashboard = () => {
   const [user, setUser] = useState<any>(null);
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
     checkUser();
@@ -38,6 +39,16 @@ const Dashboard = () => {
 
       if (error) throw error;
       setProfile(profileData);
+
+      // Check if user has admin role
+      const { data: roleData } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", session.user.id)
+        .eq("role", "admin")
+        .maybeSingle();
+
+      setIsAdmin(!!roleData);
     } catch (error: any) {
       console.error('Error:', error);
       toast({
@@ -200,6 +211,25 @@ const Dashboard = () => {
 
       {/* Quick Actions */}
       <div className="mt-8 grid md:grid-cols-3 gap-4">
+        {isAdmin && (
+          <Card 
+            className="cursor-pointer active:shadow-md transition-shadow border-primary bg-gradient-to-r from-primary/10 to-primary/5" 
+            onClick={() => navigate('/admin')}
+          >
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-primary rounded-lg">
+                  <Shield className="w-6 h-6 text-primary-foreground" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-primary">Admin Portal</h3>
+                  <p className="text-sm text-muted-foreground">Manage platform</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         <Card className="cursor-pointer active:shadow-md transition-shadow" onClick={() => navigate('/profile')}>
           <CardContent className="pt-6">
             <div className="flex items-center gap-3">
