@@ -1,9 +1,46 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useEffect } from 'react';
 
 export function useProfile() {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  // Set up realtime subscription for profile changes (e.g., Admin KYC approval)
+  useEffect(() => {
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    
+    const setupRealtime = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      channel = supabase
+        .channel('profile-changes')
+        .on(
+          'postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'profiles',
+            filter: `id=eq.${user.id}`,
+          },
+          (payload) => {
+            // Immediately update cache with new data - fixes KYC bug
+            queryClient.setQueryData(['profile'], payload.new);
+          }
+        )
+        .subscribe();
+    };
+
+    setupRealtime();
+
+    return () => {
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
+    };
+  }, [queryClient]);
 
   return useQuery({
     queryKey: ['profile'],
@@ -44,6 +81,7 @@ export function useUpdateProfile() {
       return data;
     },
     onSuccess: (data) => {
+      // Immediately update cache - fixes Header name bug
       queryClient.setQueryData(['profile'], data);
       toast({
         title: 'Profile updated',
