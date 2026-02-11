@@ -1,9 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Search, MapPin, Calendar, Users, Car } from "lucide-react";
 import { toast } from "sonner";
@@ -47,17 +46,34 @@ const SearchRides = () => {
   const [showTracking, setShowTracking] = useState(false);
 
   useEffect(() => {
-    checkUser();
-  }, []);
-
-  const checkUser = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      navigate("/auth");
-      return;
+    const init = async () => {
+      const { data: { user: u } } = await supabase.auth.getUser();
+      if (!u) { navigate("/auth"); return; }
+      setUser(u);
+    };
+    init();
+    // Auto-fill pickup with current GPS location
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(async (position) => {
+        try {
+          const res = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${position.coords.latitude}&lon=${position.coords.longitude}&addressdetails=1`,
+            { headers: { 'User-Agent': 'RaahiApp/1.0' } }
+          );
+          const data = await res.json();
+          if (data?.display_name) {
+            setOriginLocation({
+              address: data.display_name,
+              latitude: position.coords.latitude,
+              longitude: position.coords.longitude,
+            });
+          }
+        } catch (e) {
+          console.log("Reverse geocoding failed:", e);
+        }
+      }, () => {});
     }
-    setUser(user);
-  };
+  }, []);
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -188,58 +204,36 @@ const SearchRides = () => {
         <CardContent>
           <form onSubmit={handleSearch} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>
-                  <MapPin className="inline w-4 h-4 mr-1 text-primary" />
-                  From
-                </Label>
-                <LocationInput
-                  placeholder="Search pickup location..."
-                  value={originLocation?.address || ""}
-                  onLocationSelect={setOriginLocation}
-                  icon="origin"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>
-                  <MapPin className="inline w-4 h-4 mr-1 text-destructive" />
-                  To
-                </Label>
-                <LocationInput
-                  placeholder="Search destination..."
-                  value={destinationLocation?.address || ""}
-                  onLocationSelect={setDestinationLocation}
-                  icon="destination"
-                />
-              </div>
+              <LocationInput
+                placeholder="Pickup location"
+                value={originLocation?.address || ""}
+                onLocationSelect={setOriginLocation}
+                icon="origin"
+              />
+              <LocationInput
+                placeholder="Where to?"
+                value={destinationLocation?.address || ""}
+                onLocationSelect={setDestinationLocation}
+                icon="destination"
+              />
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="date">
-                  <Calendar className="inline w-4 h-4 mr-1" />
-                  Date
-                </Label>
-                <Input
-                  id="date"
-                  type="date"
-                  value={date}
-                  onChange={(e) => setDate(e.target.value)}
-                  className="min-h-[44px]"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="time">
-                  <Calendar className="inline w-4 h-4 mr-1" />
-                  Time
-                </Label>
-                <Input
-                  id="time"
-                  type="time"
-                  value={time}
-                  onChange={(e) => setTime(e.target.value)}
-                  className="min-h-[44px]"
-                />
-              </div>
+              <Input
+                id="date"
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                className="min-h-[44px]"
+                placeholder="Date"
+              />
+              <Input
+                id="time"
+                type="time"
+                value={time}
+                onChange={(e) => setTime(e.target.value)}
+                className="min-h-[44px]"
+                placeholder="Time"
+              />
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <Button type="submit" className="w-full min-h-[44px]" disabled={loading}>
