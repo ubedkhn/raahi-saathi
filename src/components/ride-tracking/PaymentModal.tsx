@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { 
   IndianRupee, MapPin, CheckCircle, QrCode, 
   Wallet, CreditCard, Smartphone, AlertCircle
@@ -12,11 +13,12 @@ import {
 interface PaymentModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onComplete: () => void;
+  onComplete: (finalAmount: number) => void;
   fareAmount: number;
   pickupAddress: string;
   dropAddress: string;
   riderName: string;
+  driverUpiId?: string;
 }
 
 const PaymentModal = ({
@@ -27,18 +29,29 @@ const PaymentModal = ({
   pickupAddress,
   dropAddress,
   riderName,
+  driverUpiId = "",
 }: PaymentModalProps) => {
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'upi' | null>(null);
   const [confirming, setConfirming] = useState(false);
+  const [customAmount, setCustomAmount] = useState(fareAmount.toString());
 
-  const platformFee = fareAmount * 0.05;
-  const driverEarnings = fareAmount - platformFee;
+  const amount = Number(customAmount) || 0;
+  const platformFee = amount * 0.05;
+  const driverEarnings = amount - platformFee;
+
+  const upiLink = driverUpiId
+    ? `upi://pay?pa=${driverUpiId}&pn=Raahi Driver&am=${amount}&cu=INR&tn=Raahi Ride Payment`
+    : "";
+
+  const qrDataUrl = upiLink
+    ? `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(upiLink)}`
+    : "";
 
   const handleConfirmPayment = async () => {
+    if (amount <= 0) return;
     setConfirming(true);
-    // Simulate processing
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    onComplete();
+    await new Promise(resolve => setTimeout(resolve, 500));
+    onComplete(amount);
   };
 
   return (
@@ -54,8 +67,22 @@ const PaymentModal = ({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-6 py-4">
-          {/* Fare Breakdown */}
+        <div className="space-y-5 py-4">
+          {/* Amount Input */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Ride Amount (₹)</label>
+            <Input
+              type="number"
+              inputMode="numeric"
+              min="1"
+              value={customAmount}
+              onChange={(e) => setCustomAmount(e.target.value)}
+              className="text-2xl font-bold text-center h-14"
+              placeholder="Enter amount"
+            />
+          </div>
+
+          {/* Route Summary */}
           <Card>
             <CardContent className="pt-4 space-y-3">
               <div className="flex items-start gap-2 text-sm">
@@ -78,7 +105,7 @@ const PaymentModal = ({
               <div className="space-y-2">
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Total Fare</span>
-                  <span className="font-medium">₹{fareAmount.toFixed(2)}</span>
+                  <span className="font-medium">₹{amount.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Platform Fee (5%)</span>
@@ -116,22 +143,30 @@ const PaymentModal = ({
             </div>
           </div>
 
-          {/* UPI QR Code (static placeholder) */}
+          {/* UPI QR Code */}
           {paymentMethod === 'upi' && (
             <Card className="bg-accent/30">
               <CardContent className="pt-4 text-center">
-                <div className="w-48 h-48 mx-auto bg-white rounded-lg flex items-center justify-center mb-3">
-                  <div className="text-center">
-                    <QrCode className="h-32 w-32 text-muted-foreground mx-auto" />
-                    <p className="text-xs text-muted-foreground mt-2">UPI QR Code</p>
+                {qrDataUrl ? (
+                  <img
+                    src={qrDataUrl}
+                    alt="UPI QR Code"
+                    className="w-48 h-48 mx-auto rounded-lg mb-3"
+                  />
+                ) : (
+                  <div className="w-48 h-48 mx-auto bg-white rounded-lg flex items-center justify-center mb-3">
+                    <div className="text-center">
+                      <QrCode className="h-20 w-20 text-muted-foreground mx-auto" />
+                      <p className="text-xs text-muted-foreground mt-2">Add UPI ID in profile to generate QR</p>
+                    </div>
                   </div>
-                </div>
+                )}
                 <Badge variant="secondary" className="mb-2">
                   <CreditCard className="h-3 w-3 mr-1" />
-                  Razorpay Payment
+                  UPI Payment
                 </Badge>
                 <p className="text-sm text-muted-foreground">
-                  Rider scans QR to pay ₹{fareAmount}
+                  Rider scans QR to pay ₹{amount.toFixed(2)}
                 </p>
               </CardContent>
             </Card>
@@ -144,7 +179,7 @@ const PaymentModal = ({
                 <div className="flex items-center gap-3">
                   <Wallet className="h-8 w-8 text-success" />
                   <div>
-                    <p className="font-semibold">Collect ₹{fareAmount} in cash</p>
+                    <p className="font-semibold">Collect ₹{amount.toFixed(2)} in cash</p>
                     <p className="text-sm text-muted-foreground">
                       Ensure you receive the full amount before confirming
                     </p>
@@ -167,7 +202,7 @@ const PaymentModal = ({
           {/* Confirm Button */}
           <Button
             onClick={handleConfirmPayment}
-            disabled={!paymentMethod || confirming}
+            disabled={!paymentMethod || confirming || amount <= 0}
             className="w-full min-h-[56px] text-lg font-bold"
             variant="action"
           >
