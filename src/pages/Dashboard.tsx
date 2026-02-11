@@ -262,6 +262,20 @@ const Dashboard = () => {
             </CardContent>
           </Card>
 
+          <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate('/driver-requests')}>
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-4">
+                <div className="p-3 bg-primary/10 rounded-full">
+                  <Send className="w-6 h-6 text-primary" />
+                </div>
+                <div>
+                  <h3 className="font-semibold">Rider Requests</h3>
+                  <p className="text-sm text-muted-foreground">Accept open ride requests</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader>
               <CardTitle>Your Rides</CardTitle>

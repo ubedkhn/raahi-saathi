@@ -8,6 +8,7 @@ import { Search, MapPin, Calendar, Users, Car } from "lucide-react";
 import { toast } from "sonner";
 import RideTrackingModal from "@/components/ride-tracking/RideTrackingModal";
 import { LocationInput, LocationData } from "@/components/common";
+import { reverseGeocode } from "@/utils/geocoding";
 
 interface Ride {
   id: string;
@@ -56,14 +57,10 @@ const SearchRides = () => {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(async (position) => {
         try {
-          const res = await fetch(
-            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${position.coords.latitude}&lon=${position.coords.longitude}&addressdetails=1`,
-            { headers: { 'User-Agent': 'RaahiApp/1.0' } }
-          );
-          const data = await res.json();
-          if (data?.display_name) {
+          const address = await reverseGeocode(position.coords.latitude, position.coords.longitude);
+          if (address) {
             setOriginLocation({
-              address: data.display_name,
+              address,
               latitude: position.coords.latitude,
               longitude: position.coords.longitude,
             });
