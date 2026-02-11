@@ -1,9 +1,7 @@
 import { useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Shield } from "lucide-react";
-import { useProfile } from "@/hooks/useProfile";
 import { useAdminStatus } from "@/hooks/useAdminStatus";
 
 interface RouteConfig {
@@ -27,9 +25,6 @@ const routeConfigs: Record<string, RouteConfig> = {
 const Header = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  
-  // Use cached profile data - instant loading, auto-updates on changes
-  const { data: profile } = useProfile();
   const { data: isAdmin } = useAdminStatus();
 
   const currentRoute = location.pathname;
@@ -68,7 +63,7 @@ const Header = () => {
           {config.title}
         </h1>
 
-        {/* Right - Admin Badge + Avatar */}
+        {/* Right - Admin Badge */}
         <div className="flex items-center gap-2">
           {isAdmin && config.showAvatar && (
             <Badge 
@@ -79,17 +74,6 @@ const Header = () => {
               <Shield className="w-3 h-3 mr-1" />
               Admin
             </Badge>
-          )}
-          {config.showAvatar && profile && (
-            <Avatar 
-              className="h-9 w-9 cursor-pointer active:opacity-80"
-              onClick={() => navigate('/profile')}
-            >
-              <AvatarImage src={profile.avatar_url || undefined} />
-              <AvatarFallback className="bg-primary text-primary-foreground text-sm">
-                {profile.name?.charAt(0)?.toUpperCase() || "U"}
-              </AvatarFallback>
-            </Avatar>
           )}
         </div>
       </div>

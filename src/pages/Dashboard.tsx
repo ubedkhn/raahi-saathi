@@ -124,27 +124,7 @@ const Dashboard = () => {
     <div className="max-w-7xl mx-auto px-4 py-6">
       {/* Mobile-optimized header */}
       <div className="mb-6">
-        <div className="flex items-center gap-2 mb-1">
-          <h2 className="text-xl font-bold">Welcome, {profile?.name}!</h2>
-          {profile?.kyc_status === 'verified' ? (
-            <Badge variant="default" className="text-xs">
-              <Shield className="w-3 h-3 mr-1" />
-              Verified
-            </Badge>
-          ) : profile?.kyc_status === 'pending' ? (
-            <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200 text-xs">
-              Pending
-            </Badge>
-          ) : profile?.kyc_status === 'rejected' ? (
-            <Badge variant="destructive" className="text-xs">
-              Rejected
-            </Badge>
-          ) : (
-            <Badge variant="outline" className="text-xs">
-              Complete KYC
-            </Badge>
-          )}
-        </div>
+        <h2 className="text-xl font-bold mb-1">Welcome, {profile?.name}!</h2>
         <p className="text-sm text-muted-foreground">Where would you like to go today?</p>
       </div>
 
@@ -236,39 +216,6 @@ const Dashboard = () => {
             </Card>
           )}
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Your Bookings</CardTitle>
-              <CardDescription>View your upcoming rides</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {activeBookings.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  <MapPin className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                  <p>No active bookings. Start searching for rides!</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {activeBookings.slice(0, 3).map((booking) => (
-                    <div key={booking.id} className="flex items-center justify-between p-3 border rounded-lg">
-                      <div>
-                        <div className="font-medium">{booking.pickup_address}</div>
-                        <div className="text-sm text-muted-foreground">→ {booking.drop_address}</div>
-                      </div>
-                      <Badge variant={booking.status === 'confirmed' ? 'default' : 'secondary'}>
-                        {booking.status}
-                      </Badge>
-                    </div>
-                  ))}
-                  {activeBookings.length > 3 && (
-                    <Button variant="ghost" className="w-full" onClick={() => navigate('/recent-rides')}>
-                      View All ({activeBookings.length})
-                    </Button>
-                  )}
-                </div>
-              )}
-            </CardContent>
-          </Card>
         </TabsContent>
 
         <TabsContent value="offer" className="space-y-4">
@@ -282,9 +229,8 @@ const Dashboard = () => {
             <CardContent className="space-y-4">
               <Button
                 size="lg"
-                variant="offer-ride"
                 onClick={() => navigate('/post-ride')}
-                className="w-full font-semibold"
+                className="w-full font-semibold bg-amber-500 hover:bg-amber-600 text-white"
               >
                 <Car className="mr-2 h-5 w-5" />
                 Offer a Ride
@@ -382,17 +328,6 @@ const Dashboard = () => {
           </CardContent>
         </Card>
 
-        <Card className="cursor-pointer active:shadow-md transition-shadow" onClick={() => navigate('/recent-rides')}>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <History className="w-8 h-8 text-primary" />
-              <div>
-                <h3 className="font-semibold">Ride History</h3>
-                <p className="text-sm text-muted-foreground">View past rides</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
       </div>
     </div>
   );

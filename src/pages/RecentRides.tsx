@@ -1,76 +1,33 @@
-import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { MapPin, Calendar, Car, User } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
+import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { MapPin, Calendar, Car, User, Star } from "lucide-react";
+import { useMyBookings, useMyRides } from "@/hooks/useRides";
+import RatingModal from "@/components/ride-tracking/RatingModal";
+
+const UPCOMING_STATUSES = ['pending', 'accepted', 'confirmed', 'started', 'driver_arriving', 'driver_arrived', 'in_progress'];
 
 const RecentRides = () => {
-  const navigate = useNavigate();
-  const { toast } = useToast();
-  const [bookings, setBookings] = useState<any[]>([]);
-  const [rides, setRides] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: bookings = [], isLoading: bookingsLoading } = useMyBookings();
+  const { data: rides = [], isLoading: ridesLoading } = useMyRides();
+  const [ratingBooking, setRatingBooking] = useState<any>(null);
 
-  useEffect(() => {
-    checkAuth();
-  }, []);
+  const loading = bookingsLoading || ridesLoading;
 
-  const checkAuth = async () => {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) {
-      navigate("/auth");
-      return;
-    }
-
-    await Promise.all([fetchBookings(session.user.id), fetchRides(session.user.id)]);
+  const filterBookings = (tab: string) => {
+    if (tab === 'upcoming') return bookings.filter(b => UPCOMING_STATUSES.includes(b.status || ''));
+    if (tab === 'completed') return bookings.filter(b => b.status === 'completed');
+    if (tab === 'cancelled') return bookings.filter(b => b.status === 'cancelled');
+    return [];
   };
 
-  const fetchBookings = async (userId: string) => {
-    const { data, error } = await supabase
-      .from('bookings')
-      .select(`
-        *,
-        rides:ride_id (
-          origin_address,
-          destination_address,
-          start_time
-        )
-      `)
-      .eq('rider_id', userId)
-      .order('created_at', { ascending: false })
-      .limit(10);
-
-    if (error) {
-      toast({
-        title: "Error",
-        description: "Failed to load bookings",
-        variant: "destructive",
-      });
-    } else {
-      setBookings(data || []);
-    }
-    setLoading(false);
-  };
-
-  const fetchRides = async (userId: string) => {
-    const { data, error } = await supabase
-      .from('rides')
-      .select('*')
-      .eq('driver_id', userId)
-      .order('created_at', { ascending: false })
-      .limit(10);
-
-    if (error) {
-      toast({
-        title: "Error",
-        description: "Failed to load rides",
-        variant: "destructive",
-      });
-    } else {
-      setRides(data || []);
-    }
+  const filterRides = (tab: string) => {
+    if (tab === 'upcoming') return rides.filter(r => r.status === 'scheduled' || r.status === 'active');
+    if (tab === 'completed') return rides.filter(r => r.status === 'completed');
+    if (tab === 'cancelled') return rides.filter(r => r.status === 'cancelled');
+    return [];
   };
 
   const getStatusBadge = (status: string) => {
@@ -79,6 +36,8 @@ const RecentRides = () => {
       accepted: "default",
       completed: "outline",
       cancelled: "destructive",
+      scheduled: "secondary",
+      active: "default",
     };
     return <Badge variant={variants[status] || "secondary"}>{status}</Badge>;
   };
@@ -86,120 +45,130 @@ const RecentRides = () => {
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Loading...</p>
-        </div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
       </div>
     );
   }
 
-  return (
-    <div className="max-w-7xl mx-auto px-4 py-8 space-y-8">
-      {/* As Rider */}
-      <section>
-        <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
-          <User className="w-5 h-5" />
-          As Rider ({bookings.length})
-        </h2>
-        {bookings.length === 0 ? (
-          <Card>
-            <CardContent className="text-center py-8">
-              <MapPin className="w-12 h-12 mx-auto mb-4 text-muted-foreground opacity-50" />
-              <p className="text-muted-foreground">No bookings yet</p>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="space-y-4">
-            {bookings.map((booking) => (
-              <Card key={booking.id}>
-                <CardHeader>
-                  <div className="flex justify-between items-start">
-                    <CardTitle className="text-lg">Booking</CardTitle>
-                    {getStatusBadge(booking.status)}
-                  </div>
-                  <CardDescription className="flex items-center gap-1">
-                    <Calendar className="w-4 h-4" />
-                    {new Date(booking.created_at).toLocaleDateString()}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-2">
-                  <div className="flex items-start gap-2">
-                    <MapPin className="w-4 h-4 text-primary mt-1 flex-shrink-0" />
-                    <div>
-                      <p className="font-medium">Pickup</p>
-                      <p className="text-sm text-muted-foreground">{booking.pickup_address}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-2">
-                    <MapPin className="w-4 h-4 text-destructive mt-1 flex-shrink-0" />
-                    <div>
-                      <p className="font-medium">Drop</p>
-                      <p className="text-sm text-muted-foreground">{booking.drop_address}</p>
-                    </div>
-                  </div>
-                  <div className="pt-2 border-t">
-                    <p className="text-lg font-bold text-primary">₹{booking.fare_amount}</p>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        )}
-      </section>
+  const renderTab = (tab: string) => {
+    const tabBookings = filterBookings(tab);
+    const tabRides = filterRides(tab);
+    const isEmpty = tabBookings.length === 0 && tabRides.length === 0;
 
-      {/* As Driver */}
-      <section>
-        <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
-          <Car className="w-5 h-5" />
-          As Driver ({rides.length})
-        </h2>
-        {rides.length === 0 ? (
-          <Card>
-            <CardContent className="text-center py-8">
-              <Car className="w-12 h-12 mx-auto mb-4 text-muted-foreground opacity-50" />
-              <p className="text-muted-foreground">No rides posted yet</p>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="space-y-4">
-            {rides.map((ride) => (
-              <Card key={ride.id}>
-                <CardHeader>
+    if (isEmpty) {
+      return (
+        <Card>
+          <CardContent className="text-center py-8">
+            <Car className="w-12 h-12 mx-auto mb-4 text-muted-foreground opacity-50" />
+            <p className="text-muted-foreground">No {tab} rides</p>
+          </CardContent>
+        </Card>
+      );
+    }
+
+    return (
+      <div className="space-y-4">
+        {tabBookings.length > 0 && (
+          <section>
+            <h3 className="text-sm font-medium text-muted-foreground mb-2 flex items-center gap-1">
+              <User className="w-4 h-4" /> As Rider ({tabBookings.length})
+            </h3>
+            {tabBookings.map((booking) => (
+              <Card key={booking.id} className="mb-3">
+                <CardContent className="pt-4 space-y-2">
                   <div className="flex justify-between items-start">
-                    <CardTitle className="text-lg">Ride</CardTitle>
-                    {getStatusBadge(ride.status)}
-                  </div>
-                  <CardDescription className="flex items-center gap-1">
-                    <Calendar className="w-4 h-4" />
-                    {new Date(ride.start_time).toLocaleDateString()}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-2">
-                  <div className="flex items-start gap-2">
-                    <MapPin className="w-4 h-4 text-primary mt-1 flex-shrink-0" />
-                    <div>
-                      <p className="font-medium">From</p>
-                      <p className="text-sm text-muted-foreground">{ride.origin_address}</p>
+                    <div className="flex-1 space-y-1">
+                      <div className="flex items-center gap-1 text-sm">
+                        <MapPin className="w-3 h-3 text-primary flex-shrink-0" />
+                        <span className="truncate">{booking.pickup_address}</span>
+                      </div>
+                      <div className="flex items-center gap-1 text-sm">
+                        <MapPin className="w-3 h-3 text-destructive flex-shrink-0" />
+                        <span className="truncate">{booking.drop_address}</span>
+                      </div>
                     </div>
+                    {getStatusBadge(booking.status || '')}
                   </div>
-                  <div className="flex items-start gap-2">
-                    <MapPin className="w-4 h-4 text-destructive mt-1 flex-shrink-0" />
-                    <div>
-                      <p className="font-medium">To</p>
-                      <p className="text-sm text-muted-foreground">{ride.destination_address}</p>
+                  <div className="flex items-center justify-between pt-2 border-t">
+                    <span className="text-xs text-muted-foreground flex items-center gap-1">
+                      <Calendar className="w-3 h-3" />
+                      {new Date(booking.created_at || '').toLocaleDateString()}
+                    </span>
+                    <span className="font-bold text-primary">₹{booking.fare_amount}</span>
+                  </div>
+                  {tab === 'completed' && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full mt-2"
+                      onClick={() => setRatingBooking(booking)}
+                    >
+                      <Star className="w-4 h-4 mr-1" /> Rate Driver
+                    </Button>
+                  )}
+                </CardContent>
+              </Card>
+            ))}
+          </section>
+        )}
+
+        {tabRides.length > 0 && (
+          <section>
+            <h3 className="text-sm font-medium text-muted-foreground mb-2 flex items-center gap-1">
+              <Car className="w-4 h-4" /> As Driver ({tabRides.length})
+            </h3>
+            {tabRides.map((ride) => (
+              <Card key={ride.id} className="mb-3">
+                <CardContent className="pt-4 space-y-2">
+                  <div className="flex justify-between items-start">
+                    <div className="flex-1 space-y-1">
+                      <div className="flex items-center gap-1 text-sm">
+                        <MapPin className="w-3 h-3 text-primary flex-shrink-0" />
+                        <span className="truncate">{ride.origin_address}</span>
+                      </div>
+                      <div className="flex items-center gap-1 text-sm">
+                        <MapPin className="w-3 h-3 text-destructive flex-shrink-0" />
+                        <span className="truncate">{ride.destination_address}</span>
+                      </div>
                     </div>
+                    {getStatusBadge(ride.status || '')}
                   </div>
-                  <div className="pt-2 border-t flex justify-between items-center">
-                    <p className="text-sm text-muted-foreground">{ride.seats_available} seats available</p>
-                    <p className="text-lg font-bold text-primary">₹{ride.price_per_km}/km</p>
+                  <div className="flex items-center justify-between pt-2 border-t">
+                    <span className="text-xs text-muted-foreground flex items-center gap-1">
+                      <Calendar className="w-3 h-3" />
+                      {new Date(ride.start_time).toLocaleDateString()}
+                    </span>
+                    <span className="font-bold text-primary">₹{ride.price_per_km}/km</span>
                   </div>
                 </CardContent>
               </Card>
             ))}
-          </div>
+          </section>
         )}
-      </section>
+      </div>
+    );
+  };
+
+  return (
+    <div className="max-w-7xl mx-auto px-4 py-6">
+      <Tabs defaultValue="upcoming">
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="upcoming">Upcoming</TabsTrigger>
+          <TabsTrigger value="completed">Completed</TabsTrigger>
+          <TabsTrigger value="cancelled">Cancelled</TabsTrigger>
+        </TabsList>
+        <TabsContent value="upcoming">{renderTab('upcoming')}</TabsContent>
+        <TabsContent value="completed">{renderTab('completed')}</TabsContent>
+        <TabsContent value="cancelled">{renderTab('cancelled')}</TabsContent>
+      </Tabs>
+
+      {ratingBooking && (
+        <RatingModal
+          booking={ratingBooking}
+          isOpen={!!ratingBooking}
+          onClose={() => setRatingBooking(null)}
+        />
+      )}
     </div>
   );
 };
