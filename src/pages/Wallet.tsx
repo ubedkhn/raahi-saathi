@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Wallet as WalletIcon, TrendingUp, TrendingDown, ArrowDownToLine, FileText } from "lucide-react";
 import { toast } from "sonner";
@@ -15,57 +15,35 @@ const Wallet = () => {
   const [totalSpent, setTotalSpent] = useState(0);
   const [withdrawDialogOpen, setWithdrawDialogOpen] = useState(false);
 
-  useEffect(() => {
-    loadWalletData();
-  }, []);
+  useEffect(() => { loadWalletData(); }, []);
 
   const loadWalletData = async () => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        navigate("/auth");
-        return;
-      }
+      if (!session) { navigate("/auth"); return; }
 
-      // Fetch payments as driver (earnings)
-      const { data: driverPayments } = await supabase
-        .from("payments")
-        .select("amount, status")
-        .eq("driver_id", session.user.id)
-        .eq("status", "completed");
-
-      // Fetch payments as rider (spent)
-      const { data: riderPayments } = await supabase
-        .from("payments")
-        .select("amount, status")
-        .eq("rider_id", session.user.id)
-        .eq("status", "completed");
-
-      // Fetch wallet transactions for balance
       const { data: transactions } = await supabase
         .from("wallet_transactions")
         .select("amount, type, status")
         .eq("user_id", session.user.id)
         .eq("status", "completed");
 
-      // Calculate totals
-      const earned = driverPayments?.reduce((sum, p) => sum + Number(p.amount), 0) || 0;
-      const spent = riderPayments?.reduce((sum, p) => sum + Number(p.amount), 0) || 0;
-      
-      // Calculate wallet balance from transactions
       let balance = 0;
+      let earned = 0;
+      let spent = 0;
+
       transactions?.forEach(t => {
-        if (t.type === 'credit') balance += Number(t.amount);
-        else if (t.type === 'debit' || t.type === 'withdrawal') balance -= Number(t.amount);
+        const amt = Number(t.amount);
+        if (t.type === 'credit') { balance += amt; earned += amt; }
+        else if (t.type === 'debit') { balance -= amt; spent += amt; }
+        else if (t.type === 'withdrawal') { balance -= amt; }
       });
 
-      // For now, assume wallet balance equals earnings minus withdrawals
-      // In a real app, this would track commissions for offline payments
-      setWalletBalance(Math.max(0, balance + earned * 0.1)); // 10% commission example
+      setWalletBalance(Math.max(0, balance));
       setTotalEarned(earned);
       setTotalSpent(spent);
     } catch (error: any) {
-      console.error("Error loading wallet data:", error);
+      console.error("Error loading wallet:", error);
       toast.error("Failed to load wallet data");
     } finally {
       setLoading(false);
@@ -85,10 +63,7 @@ const Wallet = () => {
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Loading...</p>
-        </div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
       </div>
     );
   }
@@ -97,20 +72,16 @@ const Wallet = () => {
     <div className="max-w-7xl mx-auto px-4 py-8 space-y-6 animate-fade-in">
       <div className="mb-6">
         <h1 className="text-2xl font-bold flex items-center gap-2">
-          <WalletIcon className="h-6 w-6 text-primary" />
-          My Wallet
+          <WalletIcon className="h-6 w-6 text-primary" /> My Wallet
         </h1>
         <p className="text-muted-foreground">Manage your earnings and transactions</p>
       </div>
 
-      {/* Wallet Cards */}
       <div className="grid md:grid-cols-3 gap-4">
-        {/* Wallet Balance */}
         <Card className="bg-gradient-to-br from-primary/10 to-primary/5 border-primary/20">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <WalletIcon className="h-4 w-4" />
-              Wallet Balance
+              <WalletIcon className="h-4 w-4" /> Wallet Balance
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -119,12 +90,10 @@ const Wallet = () => {
           </CardContent>
         </Card>
 
-        {/* Total Earned */}
         <Card className="bg-gradient-to-br from-success/10 to-success/5 border-success/20">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <TrendingUp className="h-4 w-4 text-success" />
-              Total Earned
+              <TrendingUp className="h-4 w-4 text-success" /> Total Earned
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -133,12 +102,10 @@ const Wallet = () => {
           </CardContent>
         </Card>
 
-        {/* Total Spent */}
         <Card className="bg-gradient-to-br from-destructive/10 to-destructive/5 border-destructive/20">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <TrendingDown className="h-4 w-4 text-destructive" />
-              Total Spent
+              <TrendingDown className="h-4 w-4 text-destructive" /> Total Spent
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -148,9 +115,7 @@ const Wallet = () => {
         </Card>
       </div>
 
-      {/* Actions */}
       <div className="grid md:grid-cols-2 gap-4">
-        {/* Withdraw Button */}
         <Dialog open={withdrawDialogOpen} onOpenChange={setWithdrawDialogOpen}>
           <DialogTrigger asChild>
             <Card className="cursor-pointer hover:shadow-md transition-shadow">
@@ -170,37 +135,27 @@ const Wallet = () => {
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Withdraw Money</DialogTitle>
-              <DialogDescription>
-                Transfer your wallet balance to your bank account
-              </DialogDescription>
+              <DialogDescription>Transfer your wallet balance to your bank account</DialogDescription>
             </DialogHeader>
             <div className="space-y-4 pt-4">
               <div className="p-4 bg-muted rounded-lg text-center">
                 <p className="text-sm text-muted-foreground">Available Balance</p>
                 <p className="text-2xl font-bold text-primary">₹{walletBalance.toFixed(2)}</p>
               </div>
-              
               {walletBalance < 100 ? (
                 <div className="p-4 bg-destructive/10 rounded-lg border border-destructive/20">
-                  <p className="text-sm text-destructive text-center">
-                    Minimum withdrawal amount is ₹100
-                  </p>
+                  <p className="text-sm text-destructive text-center">Minimum withdrawal amount is ₹100</p>
                 </div>
               ) : (
                 <Button onClick={handleWithdraw} className="w-full min-h-[44px]">
-                  <ArrowDownToLine className="h-4 w-4 mr-2" />
-                  Withdraw ₹{walletBalance.toFixed(2)}
+                  <ArrowDownToLine className="h-4 w-4 mr-2" /> Withdraw ₹{walletBalance.toFixed(2)}
                 </Button>
               )}
             </div>
           </DialogContent>
         </Dialog>
 
-        {/* Passbook Link */}
-        <Card 
-          className="cursor-pointer hover:shadow-md transition-shadow"
-          onClick={() => navigate('/passbook')}
-        >
+        <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate('/passbook')}>
           <CardContent className="pt-6">
             <div className="flex items-center gap-4">
               <div className="p-3 bg-secondary/10 rounded-full">
@@ -215,16 +170,13 @@ const Wallet = () => {
         </Card>
       </div>
 
-      {/* Info Card */}
       <Card className="bg-muted/50">
-        <CardHeader>
-          <CardTitle className="text-lg">How Wallet Works</CardTitle>
-        </CardHeader>
+        <CardHeader><CardTitle className="text-lg">How Wallet Works</CardTitle></CardHeader>
         <CardContent className="space-y-2 text-sm text-muted-foreground">
           <p>• Earn money when riders pay for your shared rides</p>
-          <p>• Track all your earnings and spending in one place</p>
+          <p>• 5% platform fee is deducted, rest credited to your wallet</p>
+          <p>• Track all earnings and spending in one place</p>
           <p>• Withdraw your balance anytime (minimum ₹100)</p>
-          <p>• Platform fee of 5% is deducted from each ride</p>
         </CardContent>
       </Card>
     </div>
