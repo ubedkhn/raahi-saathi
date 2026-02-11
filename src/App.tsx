@@ -32,6 +32,7 @@ import Support from "./pages/Support";
 import Wallet from "./pages/Wallet";
 import Passbook from "./pages/Passbook";
 import EmergencyContacts from "./pages/EmergencyContacts";
+import DriverRequests from "./pages/DriverRequests";
 
 // Auth-aware root route component
 const RootRoute = () => {
@@ -96,6 +97,7 @@ const App = () => (
               <Route path="/wallet" element={<Wallet />} />
               <Route path="/passbook" element={<Passbook />} />
               <Route path="/emergency-contacts" element={<EmergencyContacts />} />
+              <Route path="/driver-requests" element={<DriverRequests />} />
             </Route>
             
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

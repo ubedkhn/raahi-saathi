@@ -1,3 +1,5 @@
+import { supabase } from "@/integrations/supabase/client";
+
 export interface LocationResult {
   address: string;
   latitude: number;
@@ -5,64 +7,44 @@ export interface LocationResult {
   displayName: string;
 }
 
-interface NominatimResult {
-  display_name: string;
-  lat: string;
-  lon: string;
-  address?: {
-    city?: string;
-    town?: string;
-    village?: string;
-    state?: string;
-    country?: string;
-  };
+/**
+ * Forward geocode: search for locations via Mapbox (proxied through edge function)
+ */
+export async function searchLocation(query: string): Promise<LocationResult[]> {
+  if (!query || query.trim().length < 3) return [];
+
+  try {
+    const { data, error } = await supabase.functions.invoke("mapbox-geocode", {
+      body: { type: "forward", query: query.trim() },
+    });
+
+    if (error) throw error;
+    return Array.isArray(data) ? data : [];
+  } catch (error) {
+    console.error("Geocoding error:", error);
+    return [];
+  }
 }
 
 /**
- * Search for locations using OpenStreetMap Nominatim API
- * @param query - The search query (e.g., "Bhopal Junction")
- * @returns Array of location results with coordinates
+ * Reverse geocode: lat/lng → address via Mapbox
  */
-export async function searchLocation(query: string): Promise<LocationResult[]> {
-  if (!query || query.trim().length < 3) {
-    return [];
-  }
-
+export async function reverseGeocode(lat: number, lng: number): Promise<string | null> {
   try {
-    const encodedQuery = encodeURIComponent(query.trim());
-    const response = await fetch(
-      `https://nominatim.openstreetmap.org/search?format=json&q=${encodedQuery}&limit=5&addressdetails=1&countrycodes=in`,
-      {
-        headers: {
-          'Accept': 'application/json',
-          // Nominatim requires a User-Agent header
-          'User-Agent': 'RaahiApp/1.0'
-        }
-      }
-    );
+    const { data, error } = await supabase.functions.invoke("mapbox-geocode", {
+      body: { type: "reverse", lat, lng },
+    });
 
-    if (!response.ok) {
-      throw new Error('Failed to fetch location data');
-    }
-
-    const data: NominatimResult[] = await response.json();
-
-    return data.map((item) => ({
-      address: item.display_name,
-      latitude: parseFloat(item.lat),
-      longitude: parseFloat(item.lon),
-      displayName: item.display_name
-    }));
+    if (error) throw error;
+    return data?.[0]?.address || null;
   } catch (error) {
-    console.error('Geocoding error:', error);
-    return [];
+    console.error("Reverse geocoding error:", error);
+    return null;
   }
 }
 
 /**
  * Debounce helper function
- * @param func - Function to debounce
- * @param wait - Delay in milliseconds
  */
 export function debounce<T extends (...args: any[]) => any>(
   func: T,
@@ -71,11 +53,7 @@ export function debounce<T extends (...args: any[]) => any>(
   let timeoutId: ReturnType<typeof setTimeout> | null = null;
 
   return (...args: Parameters<T>) => {
-    if (timeoutId) {
-      clearTimeout(timeoutId);
-    }
-    timeoutId = setTimeout(() => {
-      func(...args);
-    }, wait);
+    if (timeoutId) clearTimeout(timeoutId);
+    timeoutId = setTimeout(() => func(...args), wait);
   };
 }
