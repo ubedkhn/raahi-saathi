@@ -1,109 +1,111 @@
 
 
-# Raahi MVP Refinement Plan
+# Raahi MVP Refinement -- My Rides Tabs, Wallet Cleanup, KYC Realtime, Active Ride Chat
 
-This is a large scope request. To stay within credit constraints, I'm grouping changes into **3 batches** ranked by impact. Each batch is a single prompt to minimize credit usage.
+## Summary
 
----
-
-## Batch 1: Dashboard Cleanup + My Rides Tabs (Highest Impact)
-
-### 1A. Dashboard (Home) Cleanup
-**Changes to `src/pages/Dashboard.tsx`:**
-- Remove the "Verified" badge from the welcome header (keep it only in Profile)
-- Remove the "Ride History" quick action card at the bottom
-- Remove the "Your Bookings" card from the "Find a Ride" tab (redundant with My Rides)
-- Change "Offer a Ride" button variant from `variant="offer-ride"` to a yellow/amber style
-- Keep only: "Request a Ride" card, "Find a Ride" card, Nearby Rides, Post a Ride card, SOS card
-
-### 1B. Remove Avatar from Header
-**Changes to `src/components/layout/Header.tsx`:**
-- Remove the avatar icon from the right side of the dashboard header
-- Keep the Admin badge if applicable
-
-### 1C. My Rides with Tabs (Upcoming / Completed / Cancelled)
-**Changes to `src/pages/RecentRides.tsx`:**
-- Add `Tabs` component with 3 tabs: Upcoming, Completed, Cancelled
-- Each tab filters both bookings (as rider) and rides (as driver) by status
-- Upcoming = `pending`, `accepted`, `scheduled`, `in_progress`, `driver_arrived`
-- Completed = `completed`
-- Cancelled = `cancelled`
-- Add a "Rate Driver" button on completed bookings (links to rating flow in Batch 3)
+4 changes in one batch: restructure My Rides tabs to Upcoming/Active/History, add active ride detail with location sharing + call + quick-text chat, remove "Total Spent" from Wallet and inline transaction history, and wire KYC approval to instantly notify users via realtime.
 
 ---
 
-## Batch 2: Search Flow + Location Improvements
+## 1. My Rides Tab Restructure
 
-### 2A. Search Rides UI Cleanup
-**Changes to `src/pages/SearchRides.tsx`:**
-- Remove the "From" and "To" label text above the location inputs
-- Keep just the `LocationInput` fields with placeholder text ("Pickup location", "Where to?")
-- Auto-fill pickup with user's current location on page load using `navigator.geolocation` + reverse geocoding
+**File: `src/pages/RecentRides.tsx`**
 
-### 2B. Auto-detect Location on App Open
-**Changes to `src/pages/Dashboard.tsx`:**
-- Already fetches `userLocation` via geolocation -- this is working
-- Pass current location context to search page via navigation state so it pre-fills
+Current tabs: Upcoming | Completed | Cancelled
 
----
+New tabs: **Upcoming | Active | History**
 
-## Batch 3: Post-Ride Rating + Ride Cancellation
+- **Upcoming**: bookings with status `pending`, `confirmed`, `scheduled` + rides with `scheduled`
+- **Active**: bookings with status `accepted`, `driver_arriving`, `driver_arrived`, `in_progress` + rides with `active`
+- **History**: bookings with status `completed` or `cancelled` + rides with `completed` or `cancelled`
 
-### 3A. Rating System After Ride Completion
-**New component `src/components/ride-tracking/RatingModal.tsx`:**
-- Star rating (1-5) + optional comment textarea
-- Submits to existing `ratings` table
-- Triggered from completed rides in "My Rides" page
-
-### 3B. Cancel Ride Flow
-**Changes to `src/pages/ManageRide.tsx` and `src/pages/SearchRides.tsx`:**
-- Add "Cancel Ride" button for rider on accepted/pending bookings
-- When rider cancels: booking status -> `cancelled`, ride stays available for others
-- When driver cancels (rejects): booking status -> `cancelled`
-- Both sides see updated status via existing realtime subscription
+Active ride cards become tappable -- clicking navigates to `/manage-ride/:bookingId` (already exists and has call, OTP, cancel logic). For driver rides without a booking, tapping shows the ride detail.
 
 ---
 
-## What Gets Deferred (Not MVP-Critical)
+## 2. Active Ride Detail Enhancements
 
-These features require significant infrastructure and should be post-launch:
+**File: `src/pages/ManageRide.tsx`**
 
-| Feature | Why Deferred |
-|---------|-------------|
-| Live location sharing popup with map | Requires Mapbox GL integration, realtime lat/lng streaming, significant UI work -- 3+ credits alone |
-| Push notifications on accept/cancel | Requires Capacitor Push plugin + backend function + FCM setup -- separate effort |
-| Dynamic QR code from driver-entered amount | Current static QR + cash flow works for MVP |
-| "50% less than Ola" comparison | Needs external pricing data or hardcoded benchmarks -- cosmetic, not functional |
-| Capacitor native build | Already documented in project context; user should follow existing Capacitor setup guide after code is stable |
+Add 3 features to the existing manage ride page:
+
+### 2A. Share Current Location Button
+- Add a "Share Location" button that gets `navigator.geolocation.getCurrentPosition()` and opens `https://www.google.com/maps?q={lat},{lng}` in a new tab
+- Visible when booking status is `accepted`, `driver_arrived`, or `in_progress`
+
+### 2B. Quick-Text Chat
+- Add a collapsible chat section below the contact info card
+- 3 pre-written quick-text buttons: "I'm arriving", "Please wait", "Where are you?"
+- Uses a new `ride_messages` table (needs DB migration) with columns: `id`, `booking_id`, `sender_id`, `message`, `created_at`
+- Realtime subscription shows messages instantly
+- Simple message list with sender name and timestamp
+
+### 2C. Database Migration
+Create `ride_messages` table:
+```text
+- id: uuid PK default gen_random_uuid()
+- booking_id: uuid FK -> bookings(id) NOT NULL
+- sender_id: uuid NOT NULL
+- message: text NOT NULL
+- created_at: timestamptz default now()
+```
+
+RLS policies:
+- SELECT: user is rider or driver on the booking (via `is_ride_participant` check on the booking's ride_id)
+- INSERT: same check, sender_id must equal auth.uid()
+
+Enable realtime: `ALTER PUBLICATION supabase_realtime ADD TABLE public.ride_messages;`
+
+---
+
+## 3. Wallet Changes
+
+**File: `src/pages/Wallet.tsx`**
+
+- Remove the "Total Spent" card entirely (keep only Wallet Balance + Total Earned as 2-column grid)
+- Add inline Transaction History section below the action cards (move logic from Passbook.tsx into Wallet.tsx)
+- Show last 20 transactions with date, amount, type (credit/debit), and color coding (green/red)
+- Keep the Passbook page as a "View All" link for the full table
+
+---
+
+## 4. KYC Approval Realtime Notification
+
+**File: `src/hooks/useProfile.ts`** -- already has realtime subscription on profiles table. When `kyc_status` changes to `verified`, we need to show a toast.
+
+**File: `src/hooks/useProfile.ts`**
+- In the realtime callback, detect when `payload.new.kyc_status === 'verified'` and `payload.old?.kyc_status !== 'verified'`
+- Import and call `toast` from sonner to show: "KYC Approved! You can now post rides."
+
+**File: `src/pages/admin/KYCVerification.tsx`** -- already moves cards from Pending to Verified via local state update (instant). No changes needed -- it already works.
 
 ---
 
 ## Technical Details
 
 ### Files Modified
-
 ```text
-Batch 1 (1 credit):
-  - src/pages/Dashboard.tsx        (remove badge, history card, bookings card, yellow button)
-  - src/components/layout/Header.tsx (remove avatar)
-  - src/pages/RecentRides.tsx      (add Upcoming/Completed/Cancelled tabs)
-
-Batch 2 (1 credit):
-  - src/pages/SearchRides.tsx      (remove labels, auto-fill current location)
-
-Batch 3 (1 credit):
-  - src/components/ride-tracking/RatingModal.tsx (new)
-  - src/pages/RecentRides.tsx      (add Rate button on completed rides)
-  - src/pages/ManageRide.tsx       (cancel button for active bookings)
+src/pages/RecentRides.tsx        -- Restructure tabs: Upcoming/Active/History
+src/pages/ManageRide.tsx         -- Add Share Location button + quick-text chat UI
+src/pages/Wallet.tsx             -- Remove Total Spent, add inline transaction list
+src/hooks/useProfile.ts          -- Add toast on KYC approval via realtime
 ```
 
-### No Database Migrations Needed
-- `ratings` table already exists with proper RLS
-- `bookings` status enum already supports `cancelled`, `completed`
-- `ride_requests` table already exists
+### Database Migration
+```text
+1. CREATE TABLE ride_messages (id, booking_id, sender_id, message, created_at)
+2. RLS: SELECT/INSERT for ride participants only
+3. Enable realtime on ride_messages
+```
 
-### Strategic Notes
-- Ship Batch 1 first -- it's the most visible improvement for zero backend risk
-- The "live location popup with map" is a post-MVP feature. For now, the ManageRide page with phone number visibility is sufficient
-- For Play Store: focus on privacy policy, permissions declarations, and APK signing -- those are blocking items, not code features
+### No New Dependencies
+- Google Maps link uses native URL (no SDK needed)
+- Chat uses existing Supabase realtime pattern (same as support_messages)
+- Toast uses existing sonner import
+
+### Risks / Edge Cases
+- `ride_messages` table doesn't exist yet -- migration required before chat works
+- The `is_ride_participant` function checks rides/bookings tables -- we'll use it for RLS on ride_messages
+- Share Location requires geolocation permission (already requested elsewhere in the app)
 
