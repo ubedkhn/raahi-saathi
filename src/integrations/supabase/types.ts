@@ -441,6 +441,38 @@ export type Database = {
           },
         ]
       }
+      ride_messages: {
+        Row: {
+          booking_id: string
+          created_at: string
+          id: string
+          message: string
+          sender_id: string
+        }
+        Insert: {
+          booking_id: string
+          created_at?: string
+          id?: string
+          message: string
+          sender_id: string
+        }
+        Update: {
+          booking_id?: string
+          created_at?: string
+          id?: string
+          message?: string
+          sender_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ride_messages_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ride_requests: {
         Row: {
           created_at: string | null
@@ -834,6 +866,10 @@ export type Database = {
           _role: Database["public"]["Enums"]["app_role"]
           _user_id: string
         }
+        Returns: boolean
+      }
+      is_booking_participant: {
+        Args: { _booking_id: string; _user_id: string }
         Returns: boolean
       }
       is_ride_participant: {

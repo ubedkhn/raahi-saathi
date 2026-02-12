@@ -4,15 +4,24 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Wallet as WalletIcon, TrendingUp, TrendingDown, ArrowDownToLine, FileText } from "lucide-react";
+import { Wallet as WalletIcon, TrendingUp, ArrowDownToLine, FileText } from "lucide-react";
 import { toast } from "sonner";
+
+interface Transaction {
+  id: string;
+  amount: number;
+  type: string;
+  description: string | null;
+  created_at: string;
+  status: string;
+}
 
 const Wallet = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [walletBalance, setWalletBalance] = useState(0);
   const [totalEarned, setTotalEarned] = useState(0);
-  const [totalSpent, setTotalSpent] = useState(0);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [withdrawDialogOpen, setWithdrawDialogOpen] = useState(false);
 
   useEffect(() => { loadWalletData(); }, []);
@@ -22,26 +31,26 @@ const Wallet = () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) { navigate("/auth"); return; }
 
-      const { data: transactions } = await supabase
+      const { data: txns } = await supabase
         .from("wallet_transactions")
-        .select("amount, type, status")
+        .select("*")
         .eq("user_id", session.user.id)
-        .eq("status", "completed");
+        .eq("status", "completed")
+        .order("created_at", { ascending: false });
 
       let balance = 0;
       let earned = 0;
-      let spent = 0;
 
-      transactions?.forEach(t => {
+      txns?.forEach(t => {
         const amt = Number(t.amount);
         if (t.type === 'credit') { balance += amt; earned += amt; }
-        else if (t.type === 'debit') { balance -= amt; spent += amt; }
+        else if (t.type === 'debit') { balance -= amt; }
         else if (t.type === 'withdrawal') { balance -= amt; }
       });
 
       setWalletBalance(Math.max(0, balance));
       setTotalEarned(earned);
-      setTotalSpent(spent);
+      setTransactions((txns || []).slice(0, 20));
     } catch (error: any) {
       console.error("Error loading wallet:", error);
       toast.error("Failed to load wallet data");
@@ -77,7 +86,7 @@ const Wallet = () => {
         <p className="text-muted-foreground">Manage your earnings and transactions</p>
       </div>
 
-      <div className="grid md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 gap-4">
         <Card className="bg-gradient-to-br from-primary/10 to-primary/5 border-primary/20">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
@@ -98,19 +107,7 @@ const Wallet = () => {
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold text-success">₹{totalEarned.toFixed(2)}</div>
-            <p className="text-xs text-muted-foreground mt-1">Lifetime earnings as driver</p>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-destructive/10 to-destructive/5 border-destructive/20">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <TrendingDown className="h-4 w-4 text-destructive" /> Total Spent
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-destructive">₹{totalSpent.toFixed(2)}</div>
-            <p className="text-xs text-muted-foreground mt-1">Lifetime spending as rider</p>
+            <p className="text-xs text-muted-foreground mt-1">Lifetime earnings</p>
           </CardContent>
         </Card>
       </div>
@@ -162,13 +159,41 @@ const Wallet = () => {
                 <FileText className="h-6 w-6 text-secondary" />
               </div>
               <div>
-                <h3 className="font-semibold">Transaction Passbook</h3>
-                <p className="text-sm text-muted-foreground">View all your transactions</p>
+                <h3 className="font-semibold">View All Transactions</h3>
+                <p className="text-sm text-muted-foreground">Full transaction passbook</p>
               </div>
             </div>
           </CardContent>
         </Card>
       </div>
+
+      {/* Inline Transaction History */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Recent Transactions</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {transactions.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-4">No transactions yet</p>
+          ) : (
+            <div className="space-y-3">
+              {transactions.map((t) => (
+                <div key={t.id} className="flex items-center justify-between py-2 border-b last:border-0">
+                  <div className="flex-1">
+                    <p className="text-sm font-medium truncate">{t.description || t.type}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {new Date(t.created_at).toLocaleDateString()} · {new Date(t.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </p>
+                  </div>
+                  <span className={`font-bold text-sm ${t.type === 'credit' ? 'text-success' : 'text-destructive'}`}>
+                    {t.type === 'credit' ? '+' : '-'}₹{Number(t.amount).toFixed(2)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       <Card className="bg-muted/50">
         <CardHeader><CardTitle className="text-lg">How Wallet Works</CardTitle></CardHeader>

@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useNavigate } from "react-router-dom";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -7,9 +8,12 @@ import { MapPin, Calendar, Car, User, Star } from "lucide-react";
 import { useMyBookings, useMyRides } from "@/hooks/useRides";
 import RatingModal from "@/components/ride-tracking/RatingModal";
 
-const UPCOMING_STATUSES = ['pending', 'accepted', 'confirmed', 'started', 'driver_arriving', 'driver_arrived', 'in_progress'];
+const UPCOMING_BOOKING = ['pending', 'confirmed', 'started'];
+const ACTIVE_BOOKING = ['accepted', 'driver_arriving', 'driver_arrived', 'in_progress'];
+const HISTORY_BOOKING = ['completed', 'cancelled'];
 
 const RecentRides = () => {
+  const navigate = useNavigate();
   const { data: bookings = [], isLoading: bookingsLoading } = useMyBookings();
   const { data: rides = [], isLoading: ridesLoading } = useMyRides();
   const [ratingBooking, setRatingBooking] = useState<any>(null);
@@ -17,16 +21,16 @@ const RecentRides = () => {
   const loading = bookingsLoading || ridesLoading;
 
   const filterBookings = (tab: string) => {
-    if (tab === 'upcoming') return bookings.filter(b => UPCOMING_STATUSES.includes(b.status || ''));
-    if (tab === 'completed') return bookings.filter(b => b.status === 'completed');
-    if (tab === 'cancelled') return bookings.filter(b => b.status === 'cancelled');
+    if (tab === 'upcoming') return bookings.filter(b => UPCOMING_BOOKING.includes(b.status || ''));
+    if (tab === 'active') return bookings.filter(b => ACTIVE_BOOKING.includes(b.status || ''));
+    if (tab === 'history') return bookings.filter(b => HISTORY_BOOKING.includes(b.status || ''));
     return [];
   };
 
   const filterRides = (tab: string) => {
-    if (tab === 'upcoming') return rides.filter(r => r.status === 'scheduled' || r.status === 'active');
-    if (tab === 'completed') return rides.filter(r => r.status === 'completed');
-    if (tab === 'cancelled') return rides.filter(r => r.status === 'cancelled');
+    if (tab === 'upcoming') return rides.filter(r => r.status === 'scheduled');
+    if (tab === 'active') return rides.filter(r => r.status === 'active');
+    if (tab === 'history') return rides.filter(r => r.status === 'completed' || r.status === 'cancelled');
     return [];
   };
 
@@ -34,12 +38,16 @@ const RecentRides = () => {
     const variants: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
       pending: "secondary",
       accepted: "default",
+      confirmed: "secondary",
+      driver_arriving: "default",
+      driver_arrived: "default",
+      in_progress: "default",
       completed: "outline",
       cancelled: "destructive",
       scheduled: "secondary",
       active: "default",
     };
-    return <Badge variant={variants[status] || "secondary"}>{status}</Badge>;
+    return <Badge variant={variants[status] || "secondary"}>{status?.replace(/_/g, ' ')}</Badge>;
   };
 
   if (loading) {
@@ -54,6 +62,8 @@ const RecentRides = () => {
     const tabBookings = filterBookings(tab);
     const tabRides = filterRides(tab);
     const isEmpty = tabBookings.length === 0 && tabRides.length === 0;
+    const isActive = tab === 'active';
+    const isHistory = tab === 'history';
 
     if (isEmpty) {
       return (
@@ -74,7 +84,11 @@ const RecentRides = () => {
               <User className="w-4 h-4" /> As Rider ({tabBookings.length})
             </h3>
             {tabBookings.map((booking) => (
-              <Card key={booking.id} className="mb-3">
+              <Card
+                key={booking.id}
+                className={`mb-3 ${isActive ? 'cursor-pointer hover:shadow-md transition-shadow' : ''}`}
+                onClick={isActive ? () => navigate(`/manage-ride/${booking.id}`) : undefined}
+              >
                 <CardContent className="pt-4 space-y-2">
                   <div className="flex justify-between items-start">
                     <div className="flex-1 space-y-1">
@@ -96,12 +110,12 @@ const RecentRides = () => {
                     </span>
                     <span className="font-bold text-primary">₹{booking.fare_amount}</span>
                   </div>
-                  {tab === 'completed' && (
+                  {isHistory && booking.status === 'completed' && (
                     <Button
                       variant="outline"
                       size="sm"
                       className="w-full mt-2"
-                      onClick={() => setRatingBooking(booking)}
+                      onClick={(e) => { e.stopPropagation(); setRatingBooking(booking); }}
                     >
                       <Star className="w-4 h-4 mr-1" /> Rate Driver
                     </Button>
@@ -118,7 +132,7 @@ const RecentRides = () => {
               <Car className="w-4 h-4" /> As Driver ({tabRides.length})
             </h3>
             {tabRides.map((ride) => (
-              <Card key={ride.id} className="mb-3">
+              <Card key={ride.id} className={`mb-3 ${isActive ? 'cursor-pointer hover:shadow-md transition-shadow' : ''}`}>
                 <CardContent className="pt-4 space-y-2">
                   <div className="flex justify-between items-start">
                     <div className="flex-1 space-y-1">
@@ -154,12 +168,12 @@ const RecentRides = () => {
       <Tabs defaultValue="upcoming">
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="upcoming">Upcoming</TabsTrigger>
-          <TabsTrigger value="completed">Completed</TabsTrigger>
-          <TabsTrigger value="cancelled">Cancelled</TabsTrigger>
+          <TabsTrigger value="active">Active</TabsTrigger>
+          <TabsTrigger value="history">History</TabsTrigger>
         </TabsList>
         <TabsContent value="upcoming">{renderTab('upcoming')}</TabsContent>
-        <TabsContent value="completed">{renderTab('completed')}</TabsContent>
-        <TabsContent value="cancelled">{renderTab('cancelled')}</TabsContent>
+        <TabsContent value="active">{renderTab('active')}</TabsContent>
+        <TabsContent value="history">{renderTab('history')}</TabsContent>
       </Tabs>
 
       {ratingBooking && (
