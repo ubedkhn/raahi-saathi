@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { toast as sonnerToast } from 'sonner';
 import { useEffect } from 'react';
 
 export function useProfile() {
@@ -28,6 +29,10 @@ export function useProfile() {
           (payload) => {
             // Immediately update cache with new data - fixes KYC bug
             queryClient.setQueryData(['profile'], payload.new);
+            // Toast on KYC approval
+            if (payload.new.kyc_status === 'verified' && payload.old?.kyc_status !== 'verified') {
+              sonnerToast.success('KYC Approved! 🎉', { description: 'You can now post rides.' });
+            }
           }
         )
         .subscribe();

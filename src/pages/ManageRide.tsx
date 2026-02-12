@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -8,9 +8,11 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { useQueryClient } from "@tanstack/react-query";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { 
   MapPin, Clock, User, Car, Phone, CheckCircle, XCircle, 
-  Navigation, Play, Square, IndianRupee, AlertCircle, KeyRound, MessageCircle, Ban
+  Navigation, Play, Square, IndianRupee, AlertCircle, KeyRound, MessageCircle, Ban,
+  Share2, ChevronDown, Send
 } from "lucide-react";
 import PaymentModal from "@/components/ride-tracking/PaymentModal";
 import RatingModal from "@/components/ride-tracking/RatingModal";
@@ -37,6 +39,16 @@ interface Booking {
   } | null;
 }
 
+interface RideMessage {
+  id: string;
+  booking_id: string;
+  sender_id: string;
+  message: string;
+  created_at: string;
+}
+
+const QUICK_TEXTS = ["I'm arriving", "Please wait", "Where are you?"];
+
 const ManageRide = () => {
   const { bookingId } = useParams();
   const navigate = useNavigate();
@@ -51,13 +63,24 @@ const ManageRide = () => {
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [showRatingModal, setShowRatingModal] = useState(false);
   const [isDriver, setIsDriver] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
+  const [messages, setMessages] = useState<RideMessage[]>([]);
+  const [sendingMessage, setSendingMessage] = useState(false);
+  const [sharingLocation, setSharingLocation] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (bookingId && user) {
       loadBooking();
       subscribeToBookingUpdates();
+      loadMessages();
+      subscribeToMessages();
     }
   }, [bookingId, user]);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
 
   const loadBooking = async () => {
     try {
@@ -72,14 +95,12 @@ const ManageRide = () => {
       const driverMode = data.rides.driver_id === user?.id;
       setIsDriver(driverMode);
 
-      // If not driver and not rider, unauthorized
       if (!driverMode && data.rider_id !== user?.id) {
         toast({ title: "Unauthorized", description: "You are not part of this booking", variant: "destructive" });
         navigate('/dashboard');
         return;
       }
 
-      // Fetch counterpart profile
       const participantId = driverMode ? data.rider_id : data.rides.driver_id;
       const { data: profile } = await supabase.rpc('get_ride_participant_profile', { participant_id: participantId });
 
@@ -103,7 +124,6 @@ const ManageRide = () => {
           setBooking(prev => {
             if (!prev) return null;
             const updated = { ...prev, ...payload.new };
-            // Auto-trigger rating modal for rider when completed
             if (payload.new.status === 'completed' && prev.status !== 'completed' && !isDriver) {
               setTimeout(() => setShowRatingModal(true), 500);
             }
@@ -114,6 +134,64 @@ const ManageRide = () => {
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
+  };
+
+  const loadMessages = async () => {
+    if (!bookingId) return;
+    const { data } = await supabase
+      .from('ride_messages')
+      .select('*')
+      .eq('booking_id', bookingId)
+      .order('created_at', { ascending: true });
+    if (data) setMessages(data);
+  };
+
+  const subscribeToMessages = () => {
+    if (!bookingId) return;
+    const channel = supabase
+      .channel(`ride-messages-${bookingId}`)
+      .on('postgres_changes', {
+        event: 'INSERT', schema: 'public', table: 'ride_messages',
+        filter: `booking_id=eq.${bookingId}`
+      }, (payload) => {
+        setMessages(prev => [...prev, payload.new as RideMessage]);
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  };
+
+  const handleSendQuickText = async (text: string) => {
+    if (!user || !bookingId) return;
+    setSendingMessage(true);
+    try {
+      const { error } = await supabase.from('ride_messages').insert({
+        booking_id: bookingId,
+        sender_id: user.id,
+        message: text,
+      });
+      if (error) throw error;
+    } catch (error: any) {
+      toast({ title: "Error", description: "Failed to send message", variant: "destructive" });
+    } finally {
+      setSendingMessage(false);
+    }
+  };
+
+  const handleShareLocation = () => {
+    setSharingLocation(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const url = `https://www.google.com/maps?q=${pos.coords.latitude},${pos.coords.longitude}`;
+        window.open(url, '_blank');
+        setSharingLocation(false);
+      },
+      (err) => {
+        toast({ title: "Location Error", description: "Unable to get your location. Please enable GPS.", variant: "destructive" });
+        setSharingLocation(false);
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
   };
 
   const handleAcceptBooking = async () => {
@@ -148,7 +226,6 @@ const ManageRide = () => {
       if (error) throw error;
 
       if (isDriver) {
-        // Driver cancels → also cancel the ride
         await supabase.from('rides').update({ status: 'cancelled' }).eq('id', booking?.ride_id);
       }
 
@@ -208,13 +285,11 @@ const ManageRide = () => {
         const platformFee = finalAmount * 0.05;
         const driverEarnings = finalAmount - platformFee;
 
-        // Credit driver
         await supabase.from('wallet_transactions').insert({
           user_id: user.id, type: 'credit', amount: driverEarnings,
           description: `Ride earnings - ${booking.pickup_address} to ${booking.drop_address}`,
           reference_id: booking.id, status: 'completed'
         });
-        // Debit rider
         await supabase.from('wallet_transactions').insert({
           user_id: booking.rider_id, type: 'debit', amount: finalAmount,
           description: `Ride payment - ${booking.pickup_address} to ${booking.drop_address}`,
@@ -280,6 +355,8 @@ const ManageRide = () => {
 
   const contactLabel = isDriver ? (booking.rider_profile?.name || 'Rider') : (booking.rider_profile?.name || 'Driver');
   const canCancel = ['pending', 'accepted', 'driver_arriving', 'driver_arrived'].includes(booking.status);
+  const showShareLocation = ['accepted', 'driver_arrived', 'in_progress'].includes(booking.status);
+  const showChat = ['accepted', 'driver_arriving', 'driver_arrived', 'in_progress'].includes(booking.status);
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-6 space-y-6">
@@ -311,6 +388,11 @@ const ManageRide = () => {
               <Button size="icon" variant="outline" onClick={handleCall} title="Call">
                 <Phone className="h-4 w-4" />
               </Button>
+              {showShareLocation && (
+                <Button size="icon" variant="outline" onClick={handleShareLocation} disabled={sharingLocation} title="Share Location">
+                  <Share2 className="h-4 w-4" />
+                </Button>
+              )}
             </div>
           </div>
 
@@ -344,6 +426,58 @@ const ManageRide = () => {
             </div>
             <span className="text-2xl font-bold text-success">₹{booking.fare_amount}</span>
           </div>
+
+          {/* Quick Chat */}
+          {showChat && (
+            <Collapsible open={chatOpen} onOpenChange={setChatOpen}>
+              <CollapsibleTrigger asChild>
+                <Button variant="outline" className="w-full justify-between min-h-[44px]">
+                  <span className="flex items-center gap-2">
+                    <MessageCircle className="h-4 w-4" /> Quick Chat
+                  </span>
+                  <ChevronDown className={`h-4 w-4 transition-transform ${chatOpen ? 'rotate-180' : ''}`} />
+                </Button>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="mt-3 space-y-3">
+                {/* Messages */}
+                <div className="max-h-48 overflow-y-auto space-y-2 p-3 bg-muted/50 rounded-lg">
+                  {messages.length === 0 && (
+                    <p className="text-sm text-muted-foreground text-center py-2">No messages yet</p>
+                  )}
+                  {messages.map((msg) => (
+                    <div key={msg.id} className={`flex ${msg.sender_id === user?.id ? 'justify-end' : 'justify-start'}`}>
+                      <div className={`max-w-[75%] px-3 py-2 rounded-lg text-sm ${
+                        msg.sender_id === user?.id
+                          ? 'bg-primary text-primary-foreground'
+                          : 'bg-background border'
+                      }`}>
+                        <p>{msg.message}</p>
+                        <p className="text-[10px] opacity-70 mt-1">
+                          {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                  <div ref={messagesEndRef} />
+                </div>
+                {/* Quick text buttons */}
+                <div className="flex flex-wrap gap-2">
+                  {QUICK_TEXTS.map((text) => (
+                    <Button
+                      key={text}
+                      variant="secondary"
+                      size="sm"
+                      disabled={sendingMessage}
+                      onClick={() => handleSendQuickText(text)}
+                      className="text-xs"
+                    >
+                      <Send className="h-3 w-3 mr-1" /> {text}
+                    </Button>
+                  ))}
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
+          )}
 
           {/* Driver Actions */}
           {isDriver && booking.status === 'pending' && (
