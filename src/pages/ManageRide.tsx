@@ -127,6 +127,10 @@ const ManageRide = () => {
             if (payload.new.status === 'completed' && prev.status !== 'completed' && !isDriver) {
               setTimeout(() => setShowRatingModal(true), 500);
             }
+            // OTP toast for rider: notify when OTP appears
+            if (!isDriver && payload.new.otp && !prev.otp) {
+              toast({ title: "OTP Ready! 🔑", description: "Share this OTP with your driver to start the ride." });
+            }
             return updated;
           });
         }
@@ -535,11 +539,20 @@ const ManageRide = () => {
             </div>
           )}
 
-          {/* Rider view: show OTP when accepted */}
-          {!isDriver && booking.status === 'accepted' && booking.otp && (
+          {/* Rider view: show OTP when accepted/driver_arriving/driver_arrived */}
+          {!isDriver && ['accepted', 'driver_arriving', 'driver_arrived'].includes(booking.status) && (
             <div className="p-4 bg-primary/10 rounded-lg text-center">
-              <p className="text-sm text-muted-foreground mb-2">Share this OTP with your driver</p>
-              <p className="text-4xl font-bold tracking-widest text-primary">{booking.otp}</p>
+              {booking.otp ? (
+                <>
+                  <p className="text-sm text-muted-foreground mb-2">Share this OTP with your driver</p>
+                  <p className="text-4xl font-bold tracking-widest text-primary">{booking.otp}</p>
+                </>
+              ) : (
+                <div className="flex items-center justify-center gap-2 text-destructive">
+                  <AlertCircle className="h-5 w-5" />
+                  <p className="text-sm font-medium">OTP generation failed. Please contact support.</p>
+                </div>
+              )}
             </div>
           )}
 
