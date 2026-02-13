@@ -1,84 +1,81 @@
 
-
-# Raahi MVP Refinement -- My Rides Tabs, Wallet Cleanup, KYC Realtime, Active Ride Chat
+# Raahi -- OTP Fix + Profile Redesign
 
 ## Summary
 
-4 changes in one batch: restructure My Rides tabs to Upcoming/Active/History, add active ride detail with location sharing + call + quick-text chat, remove "Total Spent" from Wallet and inline transaction history, and wire KYC approval to instantly notify users via realtime.
+Two changes: (1) Fix OTP delivery so the rider gets a toast + sees the OTP reliably on ManageRide, and (2) completely redesign Profile.tsx to match the uploaded reference -- minimalist layout with avatar/name/rating header, Women-Only toggle, vehicles section, and Help links.
 
 ---
 
-## 1. My Rides Tab Restructure
+## 1. OTP Delivery Fix
 
-**File: `src/pages/RecentRides.tsx`**
-
-Current tabs: Upcoming | Completed | Cancelled
-
-New tabs: **Upcoming | Active | History**
-
-- **Upcoming**: bookings with status `pending`, `confirmed`, `scheduled` + rides with `scheduled`
-- **Active**: bookings with status `accepted`, `driver_arriving`, `driver_arrived`, `in_progress` + rides with `active`
-- **History**: bookings with status `completed` or `cancelled` + rides with `completed` or `cancelled`
-
-Active ride cards become tappable -- clicking navigates to `/manage-ride/:bookingId` (already exists and has call, OTP, cancel logic). For driver rides without a booking, tapping shows the ride detail.
-
----
-
-## 2. Active Ride Detail Enhancements
+**Diagnosis:** The database trigger `booking_otp_trigger` already generates a 4-digit OTP when booking status changes from `pending` to `accepted`. The rider can see it on ManageRide (line 539). However:
+- The OTP only shows when status is `accepted` -- it should also show when `driver_arrived` (rider still needs to share it).
+- The rider gets no toast notification when OTP arrives.
+- No fallback if OTP is null after acceptance.
 
 **File: `src/pages/ManageRide.tsx`**
 
-Add 3 features to the existing manage ride page:
+Changes:
+- Expand the OTP display condition from `status === 'accepted'` to include `driver_arrived` and `driver_arriving`.
+- In `subscribeToBookingUpdates`, detect when `payload.new.otp` appears (and was previously null or status changed to accepted) and show a toast: "Your OTP is ready! Share it with your driver."
+- Add fallback: if status is `accepted`/`driver_arrived` but `booking.otp` is null, show a warning message "OTP generation failed. Please contact support."
 
-### 2A. Share Current Location Button
-- Add a "Share Location" button that gets `navigator.geolocation.getCurrentPosition()` and opens `https://www.google.com/maps?q={lat},{lng}` in a new tab
-- Visible when booking status is `accepted`, `driver_arrived`, or `in_progress`
-
-### 2B. Quick-Text Chat
-- Add a collapsible chat section below the contact info card
-- 3 pre-written quick-text buttons: "I'm arriving", "Please wait", "Where are you?"
-- Uses a new `ride_messages` table (needs DB migration) with columns: `id`, `booking_id`, `sender_id`, `message`, `created_at`
-- Realtime subscription shows messages instantly
-- Simple message list with sender name and timestamp
-
-### 2C. Database Migration
-Create `ride_messages` table:
-```text
-- id: uuid PK default gen_random_uuid()
-- booking_id: uuid FK -> bookings(id) NOT NULL
-- sender_id: uuid NOT NULL
-- message: text NOT NULL
-- created_at: timestamptz default now()
-```
-
-RLS policies:
-- SELECT: user is rider or driver on the booking (via `is_ride_participant` check on the booking's ride_id)
-- INSERT: same check, sender_id must equal auth.uid()
-
-Enable realtime: `ALTER PUBLICATION supabase_realtime ADD TABLE public.ride_messages;`
+No database changes needed -- the trigger already works.
 
 ---
 
-## 3. Wallet Changes
+## 2. Profile Page Redesign
 
-**File: `src/pages/Wallet.tsx`**
+**File: `src/pages/Profile.tsx`** -- Full rewrite to match the uploaded reference design.
 
-- Remove the "Total Spent" card entirely (keep only Wallet Balance + Total Earned as 2-column grid)
-- Add inline Transaction History section below the action cards (move logic from Passbook.tsx into Wallet.tsx)
-- Show last 20 transactions with date, amount, type (credit/debit), and color coding (green/red)
-- Keep the Passbook page as a "View All" link for the full table
+**New layout (top to bottom):**
 
----
+### 2A. Header Section
+- Large avatar (left) + Name + rating (star icon + average) + trip count + Edit button (pencil icon, navigates to /profile/edit)
+- Verified badge (green, subtle) next to name if `kyc_status === 'verified'`
 
-## 4. KYC Approval Realtime Notification
+### 2B. Preferences Section
+- **Women-Only Mode** toggle with icon and description "Ride only with other women"
+  - Reads/writes from `preferences` table (`women_only_mode` field)
+  - Uses Switch component
+- **Notifications** toggle (UI only for MVP, no push infra)
+- Clean separator between items
 
-**File: `src/hooks/useProfile.ts`** -- already has realtime subscription on profiles table. When `kyc_status` changes to `verified`, we need to show a toast.
+### 2C. My Vehicles Section
+- Section header "MY VEHICLES" with a "+" button to open Add Vehicle dialog
+- Vehicle cards: icon (bike/car), brand + model, registration number, type badge (2W/4W), verified badge
+- Tap chevron to expand or navigate (keep existing delete dialog)
+- Reuses existing vehicle CRUD hooks (`useMyVehicles`, `useAddVehicle`, `useDeleteVehicle`)
 
-**File: `src/hooks/useProfile.ts`**
-- In the realtime callback, detect when `payload.new.kyc_status === 'verified'` and `payload.old?.kyc_status !== 'verified'`
-- Import and call `toast` from sonner to show: "KYC Approved! You can now post rides."
+### 2D. Help and Support Section
+- "HELP & SUPPORT" header
+- Row items with icons + chevrons:
+  - FAQs -> navigate to /settings (help tab)
+  - Contact Support -> navigate to /support
+  - Terms & Privacy -> navigate to /settings (about tab)
 
-**File: `src/pages/admin/KYCVerification.tsx`** -- already moves cards from Pending to Verified via local state update (instant). No changes needed -- it already works.
+### 2E. Logout Button
+- Full-width outlined button at bottom with red text and LogOut icon
+
+**Removed from current Profile:**
+- Stats cards grid (Rides Given, Rides Taken, Earned, Spent)
+- "As Driver" / "As Rider" tabs with ride/booking/payment lists (this info lives on RecentRides/Wallet pages already)
+- Quick Actions card (Settings, Help links consolidated into Help section)
+- Delete Account button (moved to Settings page or hidden for MVP)
+
+**New dependencies used from existing codebase:**
+- `Switch` from `@/components/ui/switch`
+- `Separator` from `@/components/ui/separator`
+- Existing `Avatar`, `Badge`, `Card`, `Dialog`, `Button` components
+- `useProfile` hook for profile data
+- `useMyVehicles`, `useAddVehicle`, `useDeleteVehicle` hooks
+- Supabase client for preferences table read/write
+
+**Preferences logic:**
+- On mount, fetch from `preferences` table where `user_id = auth.uid()`
+- If no row exists, create one with defaults on first toggle
+- Toggle `women_only_mode` updates the row immediately via upsert
 
 ---
 
@@ -86,26 +83,14 @@ Enable realtime: `ALTER PUBLICATION supabase_realtime ADD TABLE public.ride_mess
 
 ### Files Modified
 ```text
-src/pages/RecentRides.tsx        -- Restructure tabs: Upcoming/Active/History
-src/pages/ManageRide.tsx         -- Add Share Location button + quick-text chat UI
-src/pages/Wallet.tsx             -- Remove Total Spent, add inline transaction list
-src/hooks/useProfile.ts          -- Add toast on KYC approval via realtime
+src/pages/ManageRide.tsx   -- OTP display fix (show on driver_arrived, toast on OTP arrival, null fallback)
+src/pages/Profile.tsx      -- Full redesign matching reference mockup
 ```
 
-### Database Migration
-```text
-1. CREATE TABLE ride_messages (id, booking_id, sender_id, message, created_at)
-2. RLS: SELECT/INSERT for ride participants only
-3. Enable realtime on ride_messages
-```
+### No Database Changes
+- OTP trigger already exists and works
+- Preferences table already exists with `women_only_mode` column
 
-### No New Dependencies
-- Google Maps link uses native URL (no SDK needed)
-- Chat uses existing Supabase realtime pattern (same as support_messages)
-- Toast uses existing sonner import
-
-### Risks / Edge Cases
-- `ride_messages` table doesn't exist yet -- migration required before chat works
-- The `is_ride_participant` function checks rides/bookings tables -- we'll use it for RLS on ride_messages
-- Share Location requires geolocation permission (already requested elsewhere in the app)
-
+### Ratings Query
+- To display average rating, query `ratings` table where `reviewee_id = user.id` and compute average
+- Also count total completed rides + bookings for "X trips" display
