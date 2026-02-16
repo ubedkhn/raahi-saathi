@@ -1,81 +1,105 @@
 
-# Raahi -- OTP Fix + Profile Redesign
+
+# Raahi -- Ride Flow Fixes, Cancel Button, Auto-Expire, Auth Page Cleanup
 
 ## Summary
 
-Two changes: (1) Fix OTP delivery so the rider gets a toast + sees the OTP reliably on ManageRide, and (2) completely redesign Profile.tsx to match the uploaded reference -- minimalist layout with avatar/name/rating header, Women-Only toggle, vehicles section, and Help links.
+8 changes across 4 files plus 1 database function: fix active panel sync by auto-accepting bookings created from DriverRequests, add rider cancel button in Upcoming tab, create a database function to auto-expire old ride requests, clean up Auth page text/checkbox, and wire Google OAuth properly via Lovable Cloud.
 
 ---
 
-## 1. OTP Delivery Fix
+## 1. Active Panel Sync Fix
 
-**Diagnosis:** The database trigger `booking_otp_trigger` already generates a 4-digit OTP when booking status changes from `pending` to `accepted`. The rider can see it on ManageRide (line 539). However:
-- The OTP only shows when status is `accepted` -- it should also show when `driver_arrived` (rider still needs to share it).
-- The rider gets no toast notification when OTP arrives.
-- No fallback if OTP is null after acceptance.
+**File: `src/pages/DriverRequests.tsx`**
 
-**File: `src/pages/ManageRide.tsx`**
+**Problem:** When a driver accepts a rider request, the booking is created with `status: "pending"`. The OTP trigger only fires when status changes from `pending` to `accepted`. Since the driver created this booking on behalf of the rider, it should be immediately accepted.
 
-Changes:
-- Expand the OTP display condition from `status === 'accepted'` to include `driver_arrived` and `driver_arriving`.
-- In `subscribeToBookingUpdates`, detect when `payload.new.otp` appears (and was previously null or status changed to accepted) and show a toast: "Your OTP is ready! Share it with your driver."
-- Add fallback: if status is `accepted`/`driver_arrived` but `booking.otp` is null, show a warning message "OTP generation failed. Please contact support."
+**Fix:** Change the booking insert status from `"pending"` to `"accepted"` in `handleAcceptRequest`. This triggers the OTP trigger on the database side (the trigger fires on UPDATE, so we need a two-step approach: insert as pending, then immediately update to accepted).
 
-No database changes needed -- the trigger already works.
+Actually, since the trigger is a BEFORE UPDATE trigger that checks `NEW.status = 'accepted' AND OLD.status = 'pending'`, we need to:
+1. Insert booking with `status: "pending"` (current behavior -- keep this)
+2. Immediately update the booking to `status: "accepted"` after insert
+
+This two-step approach fires the OTP trigger correctly. Add this right after the booking insert succeeds and before the ride_request status update.
+
+Also update the ride status from `"scheduled"` to `"active"` so it appears in the Active tab for the driver.
+
+**File: `src/hooks/useRides.ts`**
+
+Add realtime subscriptions to `useMyBookings` and `useMyRides` so both rider and driver see changes instantly. Use `queryClient.invalidateQueries` on realtime events for bookings and rides tables.
 
 ---
 
-## 2. Profile Page Redesign
+## 2. OTP Delivery
 
-**File: `src/pages/Profile.tsx`** -- Full rewrite to match the uploaded reference design.
+**Status:** Already implemented. The OTP trigger generates OTP on status change to `accepted`. ManageRide already shows OTP for rider in `accepted`, `driver_arriving`, `driver_arrived` statuses with toast notification. The fix in section 1 (auto-accepting the booking) ensures the OTP is generated when the driver accepts a request from DriverRequests.
 
-**New layout (top to bottom):**
+No additional changes needed.
 
-### 2A. Header Section
-- Large avatar (left) + Name + rating (star icon + average) + trip count + Edit button (pencil icon, navigates to /profile/edit)
-- Verified badge (green, subtle) next to name if `kyc_status === 'verified'`
+---
 
-### 2B. Preferences Section
-- **Women-Only Mode** toggle with icon and description "Ride only with other women"
-  - Reads/writes from `preferences` table (`women_only_mode` field)
-  - Uses Switch component
-- **Notifications** toggle (UI only for MVP, no push infra)
-- Clean separator between items
+## 3. Rider Cancel Button in Upcoming Tab
 
-### 2C. My Vehicles Section
-- Section header "MY VEHICLES" with a "+" button to open Add Vehicle dialog
-- Vehicle cards: icon (bike/car), brand + model, registration number, type badge (2W/4W), verified badge
-- Tap chevron to expand or navigate (keep existing delete dialog)
-- Reuses existing vehicle CRUD hooks (`useMyVehicles`, `useAddVehicle`, `useDeleteVehicle`)
+**File: `src/pages/RecentRides.tsx`**
 
-### 2D. Help and Support Section
-- "HELP & SUPPORT" header
-- Row items with icons + chevrons:
-  - FAQs -> navigate to /settings (help tab)
-  - Contact Support -> navigate to /support
-  - Terms & Privacy -> navigate to /settings (about tab)
+Add a "Cancel" button on each booking card in the Upcoming tab (when `tab === 'upcoming'`). On click:
+- Update the booking status to `cancelled`
+- If the booking has an associated ride_request (check by matching rider_id + pickup/drop), restore the ride_request status to `open`
+- Show toast confirmation
+- Invalidate queries
 
-### 2E. Logout Button
-- Full-width outlined button at bottom with red text and LogOut icon
+Also add a cancel button for ride requests that haven't been matched yet (need to query `ride_requests` table for current user's open requests and display them in Upcoming tab).
 
-**Removed from current Profile:**
-- Stats cards grid (Rides Given, Rides Taken, Earned, Spent)
-- "As Driver" / "As Rider" tabs with ride/booking/payment lists (this info lives on RecentRides/Wallet pages already)
-- Quick Actions card (Settings, Help links consolidated into Help section)
-- Delete Account button (moved to Settings page or hidden for MVP)
+**New addition to Upcoming tab:** Show the user's own open `ride_requests` as cards with a cancel button, separately from bookings.
 
-**New dependencies used from existing codebase:**
-- `Switch` from `@/components/ui/switch`
-- `Separator` from `@/components/ui/separator`
-- Existing `Avatar`, `Badge`, `Card`, `Dialog`, `Button` components
-- `useProfile` hook for profile data
-- `useMyVehicles`, `useAddVehicle`, `useDeleteVehicle` hooks
-- Supabase client for preferences table read/write
+---
 
-**Preferences logic:**
-- On mount, fetch from `preferences` table where `user_id = auth.uid()`
-- If no row exists, create one with defaults on first toggle
-- Toggle `women_only_mode` updates the row immediately via upsert
+## 4. Auto-Expire Ride Requests
+
+**Database migration:** Create a database function `expire_old_ride_requests()` that marks open ride requests as `expired` when `preferred_time < now()`.
+
+**Scheduled job:** Set up a `pg_cron` job to run this function every 15 minutes.
+
+```text
+Function: expire_old_ride_requests()
+  UPDATE ride_requests SET status = 'expired' 
+  WHERE status = 'open' AND preferred_time < now();
+
+Cron: */15 * * * * -- every 15 minutes
+```
+
+---
+
+## 5. Auth Page Text Cleanup
+
+**File: `src/pages/Auth.tsx`**
+
+Line-level changes:
+- Line 361: Change tagline from `"Join India's peer-to-peer ride sharing community"` to `"Join India's First peer-to-peer ride sharing community"`
+- Line 610: Change placeholder from `"John Doe"` to `"Your Name"`
+- Lines 545-548 (login checkbox): Change from `"I am 18 or older"` to `"I am 18 or older and accept all terms and conditions"` with "terms and conditions" as a link
+- Lines 702-711 (signup checkbox): Same change as login checkbox
+
+---
+
+## 6. Google Auth Fix
+
+**File: `src/pages/Auth.tsx`**
+
+The current implementation uses `supabase.auth.signInWithOAuth` directly. For Lovable Cloud, this needs to use the `lovable.auth.signInWithOAuth` function instead. This requires:
+1. Running the Configure Social Login tool to generate the Lovable module
+2. Updating `handleGoogleSignIn` to import and use `lovable.auth.signInWithOAuth("google", { redirect_uri: window.location.origin })`
+
+---
+
+## 7. Forgot Password Enhancement
+
+**Status:** Already implemented with proper flow:
+- `handleForgotPassword` sends reset email with toast "Check your inbox"
+- Reset mode detects `?reset=true` query param and `PASSWORD_RECOVERY` event
+- Password update form with validation works
+
+One small fix: the toast message says "Check your inbox for a password reset link" -- update to "Reset link sent. Check your inbox." per requirements.
 
 ---
 
@@ -83,14 +107,24 @@ No database changes needed -- the trigger already works.
 
 ### Files Modified
 ```text
-src/pages/ManageRide.tsx   -- OTP display fix (show on driver_arrived, toast on OTP arrival, null fallback)
-src/pages/Profile.tsx      -- Full redesign matching reference mockup
+src/pages/DriverRequests.tsx  -- Auto-accept booking after insert (2-step), set ride to active
+src/pages/RecentRides.tsx     -- Add cancel button for upcoming bookings + show open ride requests
+src/pages/Auth.tsx            -- Text cleanup, checkbox update, Google OAuth via Lovable Cloud, forgot password toast
+src/hooks/useRides.ts         -- Add realtime invalidation for bookings/rides queries
 ```
 
-### No Database Changes
-- OTP trigger already exists and works
-- Preferences table already exists with `women_only_mode` column
+### Database Changes
+```text
+1. CREATE FUNCTION expire_old_ride_requests() -- marks expired requests
+2. pg_cron job every 15 minutes to call the function
+```
 
-### Ratings Query
-- To display average rating, query `ratings` table where `reviewee_id = user.id` and compute average
-- Also count total completed rides + bookings for "X trips" display
+### Dependencies
+- Lovable Cloud auth module (generated by Configure Social Login tool) for Google OAuth
+- pg_cron + pg_net extensions for auto-expire (need to be enabled)
+
+### Sequencing
+1. Database migration (expire function) -- can run independently
+2. Configure Social Login tool for Google OAuth -- must run before Auth.tsx changes
+3. All file edits can happen in parallel after steps 1-2
+
