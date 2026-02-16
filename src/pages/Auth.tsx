@@ -195,7 +195,7 @@ const Auth = () => {
 
       toast({
         title: "Reset email sent!",
-        description: "Check your inbox for a password reset link.",
+        description: "Reset link sent. Check your inbox.",
       });
       setShowForgotPassword(false);
       setForgotEmail("");
@@ -262,11 +262,9 @@ const Auth = () => {
   const handleGoogleSignIn = async () => {
     setLoading(true);
     try {
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: window.location.origin,
-        },
+      const { lovable } = await import("@/integrations/lovable/index");
+      const { error } = await lovable.auth.signInWithOAuth("google", {
+        redirect_uri: window.location.origin,
       });
 
       if (error) {
@@ -358,7 +356,7 @@ const Auth = () => {
         <Card className="shadow-primary">
           <CardHeader className="text-center">
             <CardTitle className="text-3xl font-bold text-primary">Raahi</CardTitle>
-            <CardDescription>Join India's peer-to-peer ride sharing community</CardDescription>
+            <CardDescription>Join India's First peer-to-peer ride sharing community</CardDescription>
           </CardHeader>
           <CardContent>
             {isResetMode ? (
@@ -543,7 +541,8 @@ const Auth = () => {
                         onCheckedChange={(checked) => setLoginAgeConfirmed(checked === true)}
                       />
                       <Label htmlFor="login-age" className="text-sm font-normal cursor-pointer">
-                        I am 18 or older
+                        I am 18 or older and accept all{" "}
+                        <a href="/terms" className="text-primary underline hover:text-primary/80">terms and conditions</a>
                       </Label>
                     </div>
                     <button
@@ -607,7 +606,7 @@ const Auth = () => {
                     <Input
                       id="signup-name"
                       type="text"
-                      placeholder="John Doe"
+                      placeholder="Your Name"
                       value={signupData.name}
                       onChange={(e) => {
                         setSignupData({ ...signupData, name: e.target.value });
@@ -706,7 +705,8 @@ const Auth = () => {
                       onCheckedChange={(checked) => setSignupAgeConfirmed(checked === true)}
                     />
                     <Label htmlFor="signup-age" className="text-sm font-normal cursor-pointer">
-                      I am 18 or older
+                      I am 18 or older and accept all{" "}
+                      <a href="/terms" className="text-primary underline hover:text-primary/80">terms and conditions</a>
                     </Label>
                   </div>
                   
