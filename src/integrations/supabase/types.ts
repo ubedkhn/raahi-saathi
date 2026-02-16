@@ -850,6 +850,7 @@ export type Database = {
       }
     }
     Functions: {
+      expire_old_ride_requests: { Args: never; Returns: undefined }
       generate_booking_otp: { Args: never; Returns: string }
       get_ride_driver_id: { Args: { _ride_id: string }; Returns: string }
       get_ride_participant_profile: {
