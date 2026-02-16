@@ -115,7 +115,7 @@ const DriverRequests = () => {
 
       if (rideError) throw rideError;
 
-      // Create booking
+      // Create booking as pending first
       const { data: booking, error: bookingError } = await supabase
         .from("bookings")
         .insert({
@@ -134,6 +134,17 @@ const DriverRequests = () => {
         .single();
 
       if (bookingError) throw bookingError;
+
+      // Two-step: update to accepted so OTP trigger fires
+      const { error: acceptError } = await supabase
+        .from("bookings")
+        .update({ status: "accepted" })
+        .eq("id", booking.id);
+
+      if (acceptError) throw acceptError;
+
+      // Set ride to active so it shows in Active tab
+      await supabase.from("rides").update({ status: "active" }).eq("id", ride.id);
 
       // Update ride_request status to matched
       await supabase.from("ride_requests").update({ status: "matched" }).eq("id", request.id);
