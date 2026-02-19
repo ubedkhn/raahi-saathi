@@ -606,7 +606,7 @@ const Auth = () => {
                     <Input
                       id="signup-name"
                       type="text"
-                      placeholder="Your Name"
+                      placeholder="Your Name Sir"
                       value={signupData.name}
                       onChange={(e) => {
                         setSignupData({ ...signupData, name: e.target.value });

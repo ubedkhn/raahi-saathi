@@ -5,11 +5,12 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Car, MapPin, Shield, Search, AlertTriangle, Navigation, Clock, History, Send } from "lucide-react";
+import { Car, MapPin, Shield, Search, AlertTriangle, Navigation, Clock, Send } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useProfile } from "@/hooks/useProfile";
 import { useAdminStatus } from "@/hooks/useAdminStatus";
 import { useMyBookings, useMyRides } from "@/hooks/useRides";
+import NearbyRidesMap from "@/components/dashboard/NearbyRidesMap";
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -171,49 +172,38 @@ const Dashboard = () => {
             </Card>
           </div>
 
-          {/* Nearby Rides Section */}
+          {/* Compact Google Maps preview + nearby rides carousel */}
           {userLocation && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Navigation className="h-5 w-5 text-primary" />
-                  Nearby Rides
-                </CardTitle>
-                <CardDescription>Rides starting within 150m of your location</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {loadingNearby ? (
-                  <div className="text-center py-4">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-                  </div>
-                ) : nearbyRides.length === 0 ? (
-                  <div className="text-center py-6 text-muted-foreground">
-                    <Navigation className="w-10 h-10 mx-auto mb-3 opacity-50" />
-                    <p>No rides nearby right now</p>
-                  </div>
-                ) : (
-                  <div className="flex overflow-x-auto gap-4 pb-2 snap-x snap-mandatory -mx-2 px-2">
+            <div className="space-y-3">
+              <NearbyRidesMap userLocation={userLocation} nearbyRides={nearbyRides} />
+
+              {nearbyRides.length > 0 && (
+                <div>
+                  <p className="text-xs text-muted-foreground mb-2 flex items-center gap-1">
+                    <Navigation className="w-3 h-3" /> {nearbyRides.length} ride(s) within 150m
+                  </p>
+                  <div className="flex overflow-x-auto gap-3 pb-2 snap-x snap-mandatory -mx-2 px-2">
                     {nearbyRides.map((ride) => (
-                      <div 
-                        key={ride.id} 
-                        className="min-w-[280px] snap-start flex-shrink-0 p-4 border rounded-lg hover:shadow-md transition-shadow cursor-pointer bg-card" 
+                      <div
+                        key={ride.id}
+                        className="min-w-[260px] snap-start flex-shrink-0 p-3 border rounded-lg hover:shadow-md transition-shadow cursor-pointer bg-card"
                         onClick={() => navigate('/search-rides')}
                       >
-                        <div className="font-medium truncate">{ride.origin_address}</div>
-                        <div className="text-sm text-muted-foreground truncate">→ {ride.destination_address}</div>
+                        <div className="font-medium text-sm truncate">{ride.origin_address}</div>
+                        <div className="text-xs text-muted-foreground truncate">→ {ride.destination_address}</div>
                         <div className="flex items-center justify-between mt-2">
-                          <div className="text-xs text-muted-foreground">
-                            <Clock className="w-3 h-3 inline mr-1" />
-                            {new Date(ride.start_time).toLocaleString()}
+                          <div className="text-xs text-muted-foreground flex items-center gap-1">
+                            <Clock className="w-3 h-3" />
+                            {new Date(ride.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                           </div>
-                          <Badge>₹{ride.price_per_km}/km</Badge>
+                          <Badge variant="outline" className="text-xs">₹{ride.price_per_km}/km</Badge>
                         </div>
                       </div>
                     ))}
                   </div>
-                )}
-              </CardContent>
-            </Card>
+                </div>
+              )}
+            </div>
           )}
 
         </TabsContent>
