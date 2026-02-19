@@ -132,6 +132,51 @@ export type Database = {
           },
         ]
       }
+      cancellations: {
+        Row: {
+          booking_id: string | null
+          created_at: string
+          free_text: string | null
+          id: string
+          reason: string
+          ride_id: string | null
+          user_id: string
+        }
+        Insert: {
+          booking_id?: string | null
+          created_at?: string
+          free_text?: string | null
+          id?: string
+          reason: string
+          ride_id?: string | null
+          user_id: string
+        }
+        Update: {
+          booking_id?: string | null
+          created_at?: string
+          free_text?: string | null
+          id?: string
+          reason?: string
+          ride_id?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cancellations_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cancellations_ride_id_fkey"
+            columns: ["ride_id"]
+            isOneToOne: false
+            referencedRelation: "rides"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       emergency_contacts: {
         Row: {
           created_at: string | null

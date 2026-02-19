@@ -6,24 +6,29 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MapPin, Calendar, Car, User, Star, XCircle, Loader2, Clock } from "lucide-react";
 import { useMyBookings, useMyRides, useMyRideRequests } from "@/hooks/useRides";
-import { useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import RatingModal from "@/components/ride-tracking/RatingModal";
+import CancelRideModal from "@/components/ride-tracking/CancelRideModal";
 
 const UPCOMING_BOOKING = ['pending', 'confirmed', 'started'];
 const ACTIVE_BOOKING = ['accepted', 'driver_arriving', 'driver_arrived', 'in_progress'];
 const HISTORY_BOOKING = ['completed', 'cancelled'];
 
+interface CancelTarget {
+  type: "booking" | "ride" | "request";
+  bookingId?: string;
+  rideId?: string;
+  rideRequestId?: string;
+}
+
 const RecentRides = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const queryClient = useQueryClient();
   const { data: bookings = [], isLoading: bookingsLoading } = useMyBookings();
   const { data: rides = [], isLoading: ridesLoading } = useMyRides();
   const { data: rideRequests = [], isLoading: requestsLoading } = useMyRideRequests();
   const [ratingBooking, setRatingBooking] = useState<any>(null);
-  const [cancellingId, setCancellingId] = useState<string | null>(null);
+  const [cancelTarget, setCancelTarget] = useState<CancelTarget | null>(null);
 
   const loading = bookingsLoading || ridesLoading || requestsLoading;
 
@@ -39,40 +44,6 @@ const RecentRides = () => {
     if (tab === 'active') return rides.filter(r => r.status === 'active');
     if (tab === 'history') return rides.filter(r => r.status === 'completed' || r.status === 'cancelled');
     return [];
-  };
-
-  const handleCancelBooking = async (bookingId: string) => {
-    setCancellingId(bookingId);
-    try {
-      const { error } = await supabase
-        .from('bookings')
-        .update({ status: 'cancelled' })
-        .eq('id', bookingId);
-      if (error) throw error;
-      queryClient.invalidateQueries({ queryKey: ['my-bookings'] });
-      toast({ title: "Booking cancelled", description: "Your booking has been cancelled." });
-    } catch (error: any) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
-    } finally {
-      setCancellingId(null);
-    }
-  };
-
-  const handleCancelRequest = async (requestId: string) => {
-    setCancellingId(requestId);
-    try {
-      const { error } = await supabase
-        .from('ride_requests')
-        .update({ status: 'cancelled' })
-        .eq('id', requestId);
-      if (error) throw error;
-      queryClient.invalidateQueries({ queryKey: ['my-ride-requests'] });
-      toast({ title: "Request cancelled", description: "Your ride request has been cancelled." });
-    } catch (error: any) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
-    } finally {
-      setCancellingId(null);
-    }
   };
 
   const getStatusBadge = (status: string) => {
@@ -94,7 +65,7 @@ const RecentRides = () => {
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+        <Loader2 className="h-12 w-12 animate-spin text-primary" />
       </div>
     );
   }
@@ -128,20 +99,20 @@ const RecentRides = () => {
               <Clock className="w-4 h-4" /> Open Requests ({openRequests.length})
             </h3>
             {openRequests.map((req) => (
-              <Card key={req.id} className="mb-3">
+              <Card key={req.id} className="mb-3 overflow-hidden">
                 <CardContent className="pt-4 space-y-2">
-                  <div className="flex justify-between items-start">
-                    <div className="flex-1 space-y-1">
+                  <div className="flex justify-between items-start gap-2">
+                    <div className="flex-1 min-w-0 space-y-1">
                       <div className="flex items-center gap-1 text-sm">
                         <MapPin className="w-3 h-3 text-primary flex-shrink-0" />
-                        <span className="truncate">{req.origin_address}</span>
+                        <span className="truncate text-ellipsis">{req.origin_address}</span>
                       </div>
                       <div className="flex items-center gap-1 text-sm">
                         <MapPin className="w-3 h-3 text-destructive flex-shrink-0" />
-                        <span className="truncate">{req.destination_address}</span>
+                        <span className="truncate text-ellipsis">{req.destination_address}</span>
                       </div>
                     </div>
-                    <Badge variant="secondary">open</Badge>
+                    <Badge variant="secondary" className="flex-shrink-0">open</Badge>
                   </div>
                   <div className="flex items-center justify-between pt-2 border-t">
                     <span className="text-xs text-muted-foreground flex items-center gap-1">
@@ -154,10 +125,9 @@ const RecentRides = () => {
                     variant="destructive"
                     size="sm"
                     className="w-full mt-1"
-                    disabled={cancellingId === req.id}
-                    onClick={() => handleCancelRequest(req.id)}
+                    onClick={() => setCancelTarget({ type: "request", rideRequestId: req.id })}
                   >
-                    {cancellingId === req.id ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <XCircle className="w-4 h-4 mr-1" />}
+                    <XCircle className="w-4 h-4 mr-1" />
                     Cancel Request
                   </Button>
                 </CardContent>
@@ -166,6 +136,7 @@ const RecentRides = () => {
           </section>
         )}
 
+        {/* Bookings (as rider) */}
         {tabBookings.length > 0 && (
           <section>
             <h3 className="text-sm font-medium text-muted-foreground mb-2 flex items-center gap-1">
@@ -174,12 +145,12 @@ const RecentRides = () => {
             {tabBookings.map((booking) => (
               <Card
                 key={booking.id}
-                className={`mb-3 ${isActive ? 'cursor-pointer hover:shadow-md transition-shadow' : ''}`}
+                className={`mb-3 overflow-hidden ${isActive ? 'cursor-pointer hover:shadow-md transition-shadow' : ''}`}
                 onClick={isActive ? () => navigate(`/manage-ride/${booking.id}`) : undefined}
               >
                 <CardContent className="pt-4 space-y-2">
-                  <div className="flex justify-between items-start">
-                    <div className="flex-1 space-y-1">
+                  <div className="flex justify-between items-start gap-2">
+                    <div className="flex-1 min-w-0 space-y-1">
                       <div className="flex items-center gap-1 text-sm">
                         <MapPin className="w-3 h-3 text-primary flex-shrink-0" />
                         <span className="truncate">{booking.pickup_address}</span>
@@ -189,7 +160,7 @@ const RecentRides = () => {
                         <span className="truncate">{booking.drop_address}</span>
                       </div>
                     </div>
-                    {getStatusBadge(booking.status || '')}
+                    <div className="flex-shrink-0">{getStatusBadge(booking.status || '')}</div>
                   </div>
                   <div className="flex items-center justify-between pt-2 border-t">
                     <span className="text-xs text-muted-foreground flex items-center gap-1">
@@ -198,15 +169,20 @@ const RecentRides = () => {
                     </span>
                     <span className="font-bold text-primary">₹{booking.fare_amount}</span>
                   </div>
+                  {isActive && (
+                    <p className="text-xs text-primary text-center">Tap to track ride →</p>
+                  )}
                   {isUpcoming && (
                     <Button
                       variant="destructive"
                       size="sm"
                       className="w-full mt-1"
-                      disabled={cancellingId === booking.id}
-                      onClick={(e) => { e.stopPropagation(); handleCancelBooking(booking.id); }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setCancelTarget({ type: "booking", bookingId: booking.id });
+                      }}
                     >
-                      {cancellingId === booking.id ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <XCircle className="w-4 h-4 mr-1" />}
+                      <XCircle className="w-4 h-4 mr-1" />
                       Cancel Booking
                     </Button>
                   )}
@@ -226,16 +202,21 @@ const RecentRides = () => {
           </section>
         )}
 
+        {/* Rides (as driver) */}
         {tabRides.length > 0 && (
           <section>
             <h3 className="text-sm font-medium text-muted-foreground mb-2 flex items-center gap-1">
               <Car className="w-4 h-4" /> As Driver ({tabRides.length})
             </h3>
             {tabRides.map((ride) => (
-              <Card key={ride.id} className={`mb-3 ${isActive ? 'cursor-pointer hover:shadow-md transition-shadow' : ''}`}>
+              <Card
+                key={ride.id}
+                className={`mb-3 overflow-hidden ${isActive ? 'cursor-pointer hover:shadow-md transition-shadow' : ''}`}
+                onClick={isActive ? () => navigate(`/manage-ride/${ride.id}`) : undefined}
+              >
                 <CardContent className="pt-4 space-y-2">
-                  <div className="flex justify-between items-start">
-                    <div className="flex-1 space-y-1">
+                  <div className="flex justify-between items-start gap-2">
+                    <div className="flex-1 min-w-0 space-y-1">
                       <div className="flex items-center gap-1 text-sm">
                         <MapPin className="w-3 h-3 text-primary flex-shrink-0" />
                         <span className="truncate">{ride.origin_address}</span>
@@ -245,7 +226,7 @@ const RecentRides = () => {
                         <span className="truncate">{ride.destination_address}</span>
                       </div>
                     </div>
-                    {getStatusBadge(ride.status || '')}
+                    <div className="flex-shrink-0">{getStatusBadge(ride.status || '')}</div>
                   </div>
                   <div className="flex items-center justify-between pt-2 border-t">
                     <span className="text-xs text-muted-foreground flex items-center gap-1">
@@ -254,6 +235,23 @@ const RecentRides = () => {
                     </span>
                     <span className="font-bold text-primary">₹{ride.price_per_km}/km</span>
                   </div>
+                  {isActive && (
+                    <p className="text-xs text-primary text-center">Tap to manage ride →</p>
+                  )}
+                  {(isUpcoming || isActive) && (
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      className="w-full mt-1"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setCancelTarget({ type: "ride", rideId: ride.id });
+                      }}
+                    >
+                      <XCircle className="w-4 h-4 mr-1" />
+                      Cancel Ride
+                    </Button>
+                  )}
                 </CardContent>
               </Card>
             ))}
@@ -271,9 +269,9 @@ const RecentRides = () => {
           <TabsTrigger value="active">Active</TabsTrigger>
           <TabsTrigger value="history">History</TabsTrigger>
         </TabsList>
-        <TabsContent value="upcoming">{renderTab('upcoming')}</TabsContent>
-        <TabsContent value="active">{renderTab('active')}</TabsContent>
-        <TabsContent value="history">{renderTab('history')}</TabsContent>
+        <TabsContent value="upcoming" className="mt-4">{renderTab('upcoming')}</TabsContent>
+        <TabsContent value="active" className="mt-4">{renderTab('active')}</TabsContent>
+        <TabsContent value="history" className="mt-4">{renderTab('history')}</TabsContent>
       </Tabs>
 
       {ratingBooking && (
@@ -281,6 +279,17 @@ const RecentRides = () => {
           booking={ratingBooking}
           isOpen={!!ratingBooking}
           onClose={() => setRatingBooking(null)}
+        />
+      )}
+
+      {cancelTarget && (
+        <CancelRideModal
+          open={!!cancelTarget}
+          onClose={() => setCancelTarget(null)}
+          type={cancelTarget.type}
+          bookingId={cancelTarget.bookingId}
+          rideId={cancelTarget.rideId}
+          rideRequestId={cancelTarget.rideRequestId}
         />
       )}
     </div>
