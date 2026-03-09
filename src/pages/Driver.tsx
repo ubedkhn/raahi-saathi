@@ -81,8 +81,8 @@ const Driver = () => {
       <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate('/post-ride')}>
         <CardContent className="pt-6">
           <div className="flex items-center gap-4">
-            <div className="p-3 bg-amber-500/10 rounded-full">
-              <Car className="w-6 h-6 text-amber-600" />
+            <div className="p-3 bg-secondary/10 rounded-full">
+              <Car className="w-6 h-6 text-secondary-foreground" />
             </div>
             <div className="flex-1">
               <h3 className="font-semibold">Post a Ride</h3>
