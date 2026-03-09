@@ -9,12 +9,17 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useProfile, useUpdateProfile } from "@/hooks/useProfile";
 import { ArrowLeft, Camera, Upload, User, Loader2 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useToast } from "@/hooks/use-toast";
+import ImageCropper from "@/components/common/ImageCropper";
 
 const ProfileEdit = () => {
   const navigate = useNavigate();
+  const { toast } = useToast();
   const { data: cachedProfile, isLoading: profileLoading } = useProfile();
   const updateProfile = useUpdateProfile();
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [cropSrc, setCropSrc] = useState<string | null>(null);
+  const [showCropper, setShowCropper] = useState(false);
   const [formData, setFormData] = useState<{
     name: string;
     phone: string;
@@ -31,7 +36,6 @@ const ProfileEdit = () => {
     avatar_url: "",
   });
 
-  // Initialize form with cached profile data
   useEffect(() => {
     if (cachedProfile) {
       setFormData({
@@ -45,31 +49,46 @@ const ProfileEdit = () => {
     }
   }, [cachedProfile]);
 
-  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      setCropSrc(reader.result as string);
+      setShowCropper(true);
+    };
+    reader.readAsDataURL(file);
+    // Reset input so same file can be re-selected
+    e.target.value = "";
+  };
 
+  const handleCropComplete = async (blob: Blob) => {
+    setShowCropper(false);
+    setCropSrc(null);
     setUploadingAvatar(true);
+
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
 
-      const fileExt = file.name.split('.').pop();
-      const filePath = `${user.id}/avatar.${fileExt}`;
+      const filePath = `${user.id}/avatar.jpg`;
 
       const { error: uploadError } = await supabase.storage
-        .from('kyc_documents')
-        .upload(filePath, file, { upsert: true });
+        .from("avatars")
+        .upload(filePath, blob, { upsert: true, contentType: "image/jpeg" });
 
       if (uploadError) throw uploadError;
 
       const { data: { publicUrl } } = supabase.storage
-        .from('kyc_documents')
+        .from("avatars")
         .getPublicUrl(filePath);
 
-      setFormData({ ...formData, avatar_url: publicUrl });
+      // Append cache-buster
+      const url = `${publicUrl}?t=${Date.now()}`;
+      setFormData((prev) => ({ ...prev, avatar_url: url }));
+      toast({ title: "Photo updated", description: "Your profile photo has been cropped and uploaded." });
     } catch (error: any) {
-      console.error('Upload failed:', error.message);
+      toast({ title: "Upload failed", description: error.message, variant: "destructive" });
     } finally {
       setUploadingAvatar(false);
     }
@@ -86,9 +105,17 @@ const ProfileEdit = () => {
         avatar_url: formData.avatar_url,
       },
       {
-        onSuccess: () => navigate('/profile'),
+        onSuccess: () => navigate(-1),
       }
     );
+  };
+
+  const handleBack = () => {
+    if (window.history.length > 1) {
+      navigate(-1);
+    } else {
+      navigate("/profile");
+    }
   };
 
   if (profileLoading) {
@@ -102,11 +129,7 @@ const ProfileEdit = () => {
   return (
     <div className="min-h-screen bg-background p-4 pb-20">
       <div className="max-w-2xl mx-auto">
-        <Button
-          variant="ghost"
-          onClick={() => navigate('/profile')}
-          className="mb-4"
-        >
+        <Button variant="ghost" onClick={handleBack} className="mb-4">
           <ArrowLeft className="h-4 w-4 mr-2" />
           Back
         </Button>
@@ -124,15 +147,10 @@ const ProfileEdit = () => {
                   <User className="h-16 w-16" />
                 </AvatarFallback>
               </Avatar>
-              
+
               <div className="flex gap-2">
                 <label htmlFor="camera-upload">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={uploadingAvatar}
-                    asChild
-                  >
+                  <Button variant="outline" size="sm" disabled={uploadingAvatar} asChild>
                     <span className="cursor-pointer">
                       <Camera className="h-4 w-4 mr-2" />
                       Camera
@@ -144,17 +162,12 @@ const ProfileEdit = () => {
                     accept="image/*"
                     capture="user"
                     className="hidden"
-                    onChange={handleAvatarUpload}
+                    onChange={handleFileSelect}
                   />
                 </label>
 
                 <label htmlFor="file-upload">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={uploadingAvatar}
-                    asChild
-                  >
+                  <Button variant="outline" size="sm" disabled={uploadingAvatar} asChild>
                     <span className="cursor-pointer">
                       <Upload className="h-4 w-4 mr-2" />
                       Upload
@@ -165,7 +178,7 @@ const ProfileEdit = () => {
                     type="file"
                     accept="image/*"
                     className="hidden"
-                    onChange={handleAvatarUpload}
+                    onChange={handleFileSelect}
                   />
                 </label>
               </div>
@@ -197,9 +210,9 @@ const ProfileEdit = () => {
                     placeholder="9876543210"
                     className="pl-12"
                     maxLength={10}
-                    value={formData.phone.replace(/^\+91/, '')}
+                    value={formData.phone.replace(/^\+91/, "")}
                     onChange={(e) => {
-                      const digits = e.target.value.replace(/\D/g, '').slice(0, 10);
+                      const digits = e.target.value.replace(/\D/g, "").slice(0, 10);
                       setFormData({ ...formData, phone: `+91${digits}` });
                     }}
                   />
@@ -208,7 +221,12 @@ const ProfileEdit = () => {
 
               <div>
                 <Label htmlFor="gender">Gender</Label>
-                <Select value={formData.gender} onValueChange={(value: "male" | "female" | "other") => setFormData({ ...formData, gender: value })}>
+                <Select
+                  value={formData.gender}
+                  onValueChange={(value: "male" | "female" | "other") =>
+                    setFormData({ ...formData, gender: value })
+                  }
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Select gender" />
                   </SelectTrigger>
@@ -242,24 +260,26 @@ const ProfileEdit = () => {
             </div>
 
             <div className="flex gap-4">
-              <Button
-                onClick={handleSave}
-                disabled={updateProfile.isPending}
-                className="flex-1"
-              >
+              <Button onClick={handleSave} disabled={updateProfile.isPending} className="flex-1">
                 {updateProfile.isPending ? "Saving..." : "Save Changes"}
               </Button>
-              <Button
-                variant="outline"
-                onClick={() => navigate('/profile')}
-                className="flex-1"
-              >
+              <Button variant="outline" onClick={handleBack} className="flex-1">
                 Cancel
               </Button>
             </div>
           </CardContent>
         </Card>
       </div>
+
+      {/* Image Cropper Modal */}
+      {cropSrc && (
+        <ImageCropper
+          imageSrc={cropSrc}
+          open={showCropper}
+          onClose={() => { setShowCropper(false); setCropSrc(null); }}
+          onCropComplete={handleCropComplete}
+        />
+      )}
     </div>
   );
 };

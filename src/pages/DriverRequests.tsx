@@ -4,7 +4,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { MapPin, Calendar, Users, CheckCircle, Loader2 } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { MapPin, Calendar, Users, CheckCircle, Loader2, User } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { useMyVehicles } from "@/hooks/useVehicles";
@@ -23,6 +24,10 @@ interface RideRequest {
   seats_needed: number;
   status: string;
   created_at: string;
+  rider_profile?: {
+    name: string;
+    avatar_url: string | null;
+  };
 }
 
 const DriverRequests = () => {
@@ -59,8 +64,25 @@ const DriverRequests = () => {
         .order("preferred_time", { ascending: true });
 
       if (error) throw error;
-      // Exclude own requests
-      setRequests((data || []).filter((r) => r.rider_id !== user?.id));
+      const filtered = (data || []).filter((r) => r.rider_id !== user?.id);
+
+      // Fetch rider profiles for avatars
+      if (filtered.length > 0) {
+        const riderIds = [...new Set(filtered.map((r) => r.rider_id))];
+        const { data: profiles } = await supabase
+          .from("public_profiles_view")
+          .select("id, name, avatar_url")
+          .in("id", riderIds);
+
+        const profileMap = new Map((profiles || []).map((p) => [p.id, p]));
+        const withProfiles = filtered.map((r) => ({
+          ...r,
+          rider_profile: profileMap.get(r.rider_id) || undefined,
+        }));
+        setRequests(withProfiles);
+      } else {
+        setRequests([]);
+      }
     } catch (error: any) {
       console.error("Error loading requests:", error);
     } finally {
@@ -187,6 +209,14 @@ const DriverRequests = () => {
         requests.map((req) => (
           <Card key={req.id} className="overflow-hidden">
             <CardContent className="pt-4 space-y-3">
+              {/* Rider info */}
+              <div className="flex items-center gap-3">
+                <Avatar className="h-9 w-9">
+                  <AvatarImage src={req.rider_profile?.avatar_url || undefined} />
+                  <AvatarFallback><User className="h-4 w-4" /></AvatarFallback>
+                </Avatar>
+                <span className="text-sm font-medium">{req.rider_profile?.name || "Rider"}</span>
+              </div>
               <div className="space-y-2">
                 <div className="flex items-center gap-2 text-sm">
                   <MapPin className="w-4 h-4 text-primary flex-shrink-0" />
