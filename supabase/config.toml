@@ -2,3 +2,9 @@ project_id = "sjtccojgvhtyftkybyom"
 
 [functions.process-payment]
 verify_jwt = false
+
+[functions.validate-booking]
+verify_jwt = false
+
+[functions.validate-ride]
+verify_jwt = false

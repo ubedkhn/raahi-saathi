@@ -101,6 +101,7 @@ const App = () => (
               <Route path="/passbook" element={<Passbook />} />
               <Route path="/emergency-contacts" element={<EmergencyContacts />} />
               <Route path="/driver-requests" element={<DriverRequests />} />
+              <Route path="/notifications" element={<Notifications />} />
             </Route>
             
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
