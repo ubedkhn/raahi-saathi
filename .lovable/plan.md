@@ -1,135 +1,130 @@
 
 
-# Raahi - Notifications, Terms, Navigation, Offline & Security Improvements
+# Raahi -- Ride Flow Fixes, Cancel Button, Auto-Expire, Auth Page Cleanup
 
-## Important Constraints
+## Summary
 
-**LinkedIn OAuth is NOT supported** on Lovable Cloud. Only Google and Apple are available as OAuth providers. This cannot be implemented in the current setup.
-
-**The `.env` file cannot be manually edited** - it's auto-managed by Lovable Cloud. The project will continue using the current Lovable Cloud backend (`sjtccojgvhtyftkybyom`).
+8 changes across 4 files plus 1 database function: fix active panel sync by auto-accepting bookings created from DriverRequests, add rider cancel button in Upcoming tab, create a database function to auto-expire old ride requests, clean up Auth page text/checkbox, and wire Google OAuth properly via Lovable Cloud.
 
 ---
 
-## 1. Push Notifications (Supabase Realtime + Persisted)
+## 1. Active Panel Sync Fix
 
-**Database migration:**
-- Create a `notifications` table: `id`, `user_id`, `type` (enum: `booking_accepted`, `ride_booked`, `ride_cancelled`, `payment_received`, etc.), `title`, `message`, `read` (boolean, default false), `metadata` (jsonb), `created_at`
-- Enable RLS: users can only read/update their own notifications
-- Add to `supabase_realtime` publication
+**File: `src/pages/DriverRequests.tsx`**
 
-**New hook: `src/hooks/useNotifications.ts`**
-- Query unread notifications count and list
-- Subscribe to realtime INSERT events on `notifications` table for current user
-- Show toast on new notification arrival
-- Provide `markAsRead` and `markAllAsRead` mutations
+**Problem:** When a driver accepts a rider request, the booking is created with `status: "pending"`. The OTP trigger only fires when status changes from `pending` to `accepted`. Since the driver created this booking on behalf of the rider, it should be immediately accepted.
 
-**Trigger notifications server-side:**
-- Create a database trigger function `notify_on_booking_status_change()` that inserts into `notifications` when:
-  - A booking status changes to `accepted` → notify the rider
-  - A new booking is inserted → notify the driver (ride owner)
-  - A booking is cancelled → notify the other party
+**Fix:** Change the booking insert status from `"pending"` to `"accepted"` in `handleAcceptRequest`. This triggers the OTP trigger on the database side (the trigger fires on UPDATE, so we need a two-step approach: insert as pending, then immediately update to accepted).
 
-**UI changes:**
-- Add a `Bell` icon with badge counter to the Header component (next to admin badge area)
-- Create a `/notifications` page listing all notifications with read/unread state
-- Add notification badge to BottomNav or Header
+Actually, since the trigger is a BEFORE UPDATE trigger that checks `NEW.status = 'accepted' AND OLD.status = 'pending'`, we need to:
+1. Insert booking with `status: "pending"` (current behavior -- keep this)
+2. Immediately update the booking to `status: "accepted"` after insert
+
+This two-step approach fires the OTP trigger correctly. Add this right after the booking insert succeeds and before the ride_request status update.
+
+Also update the ride status from `"scheduled"` to `"active"` so it appears in the Active tab for the driver.
+
+**File: `src/hooks/useRides.ts`**
+
+Add realtime subscriptions to `useMyBookings` and `useMyRides` so both rider and driver see changes instantly. Use `queryClient.invalidateQueries` on realtime events for bookings and rides tables.
 
 ---
 
-## 2. Terms & Conditions Page
+## 2. OTP Delivery
 
-**New file: `src/pages/Terms.tsx`**
-- Styled page with sections: User Responsibilities, Driver Requirements, Payment Policies, Privacy, Dispute Resolution
-- Professional layout using Card components and proper headings
+**Status:** Already implemented. The OTP trigger generates OTP on status change to `accepted`. ManageRide already shows OTP for rider in `accepted`, `driver_arriving`, `driver_arrived` statuses with toast notification. The fix in section 1 (auto-accepting the booking) ensures the OTP is generated when the driver accepts a request from DriverRequests.
 
-**Route:** Add `/terms` as a public route in `App.tsx` (no layout wrapper needed)
-
-**Auth page:** Already has the terms checkbox and link to `/terms` on both login and signup forms - just need the page to exist.
+No additional changes needed.
 
 ---
 
-## 3. Back Navigation Fix
+## 3. Rider Cancel Button in Upcoming Tab
 
-**Problem:** `navigate(-1)` in the Header can fail if there's no history (e.g., user lands directly on a deep link).
+**File: `src/pages/RecentRides.tsx`**
 
-**Fix in `src/components/layout/Header.tsx`:**
-- Check `window.history.length > 1` before calling `navigate(-1)`
-- Fallback to `/dashboard` if no history exists
-- This is already using `navigate(-1)` which respects browser history stack - the core behavior is correct
+Add a "Cancel" button on each booking card in the Upcoming tab (when `tab === 'upcoming'`). On click:
+- Update the booking status to `cancelled`
+- If the booking has an associated ride_request (check by matching rider_id + pickup/drop), restore the ride_request status to `open`
+- Show toast confirmation
+- Invalidate queries
 
----
+Also add a cancel button for ride requests that haven't been matched yet (need to query `ride_requests` table for current user's open requests and display them in Upcoming tab).
 
-## 4. LinkedIn OAuth
-
-**Not possible.** Lovable Cloud only supports Google and Apple as OAuth providers. LinkedIn is not supported and cannot be implemented. I will skip this task.
-
----
-
-## 5. Offline Support (IndexedDB)
-
-**Enhance `src/lib/queryClient.ts`:**
-- Replace localStorage persistence with IndexedDB using a lightweight wrapper (manual `idb` calls via native IndexedDB API - no new dependency needed)
-- Cache: profiles, rides, bookings, vehicles, notifications
-- On query fetch failure (network error), serve from IndexedDB cache
-
-**New utility: `src/lib/offlineQueue.ts`**
-- Queue mutations (booking requests, cancellations) in IndexedDB when offline
-- On reconnect (`navigator.onLine` event), replay queued mutations
-- Show toast indicating offline mode and pending sync
-
-**UI indicator:**
-- Add an offline banner component that shows when `!navigator.onLine`
+**New addition to Upcoming tab:** Show the user's own open `ride_requests` as cards with a cancel button, separately from bookings.
 
 ---
 
-## 6. Frontend Code Protection / Server-side Validation
+## 4. Auto-Expire Ride Requests
 
-**Edge function: `supabase/functions/validate-booking/index.ts`**
-- Validate booking creation server-side: check ride exists, seats available, user isn't already booked, fare calculation is correct
-- Use service role to insert booking after validation
-- Frontend calls this edge function instead of direct Supabase insert
+**Database migration:** Create a database function `expire_old_ride_requests()` that marks open ride requests as `expired` when `preferred_time < now()`.
 
-**Edge function: `supabase/functions/validate-ride/index.ts`**
-- Validate ride posting: check driver has verified vehicle, KYC status, valid data
-- Insert ride server-side after validation
-
-**Enhance existing `process-payment` edge function:**
-- Ensure all payment amounts are recalculated server-side from booking/ride data
-- Never trust client-sent amounts
-
-**Frontend changes:**
-- Update `PostRide.tsx` to call `validate-ride` edge function instead of direct insert
-- Update booking flows to call `validate-booking` edge function
-- Remove any client-side fare calculation that could be manipulated
-
----
-
-## Technical Summary
+**Scheduled job:** Set up a `pg_cron` job to run this function every 15 minutes.
 
 ```text
-Database Changes:
-  - CREATE TABLE notifications (with RLS)
-  - CREATE FUNCTION notify_on_booking_status_change() + trigger
-  - ALTER PUBLICATION supabase_realtime ADD TABLE notifications
+Function: expire_old_ride_requests()
+  UPDATE ride_requests SET status = 'expired' 
+  WHERE status = 'open' AND preferred_time < now();
 
-New Files:
-  - src/pages/Terms.tsx
-  - src/hooks/useNotifications.ts
-  - src/lib/offlineQueue.ts
-  - src/components/common/OfflineBanner.tsx
-  - supabase/functions/validate-booking/index.ts
-  - supabase/functions/validate-ride/index.ts
-
-Modified Files:
-  - src/App.tsx (add /terms and /notifications routes)
-  - src/components/layout/Header.tsx (notification bell + back nav fix)
-  - src/components/BottomNav.tsx (optional notification indicator)
-  - src/lib/queryClient.ts (IndexedDB persistence)
-  - src/pages/PostRide.tsx (use validate-ride edge function)
-  - src/pages/DriverRequests.tsx (use validate-booking edge function)
-  - supabase/config.toml (edge function JWT settings)
-
-NOT Implemented:
-  - LinkedIn OAuth (not supported on Lovable Cloud)
+Cron: */15 * * * * -- every 15 minutes
 ```
+
+---
+
+## 5. Auth Page Text Cleanup
+
+**File: `src/pages/Auth.tsx`**
+
+Line-level changes:
+- Line 361: Change tagline from `"Join India's peer-to-peer ride sharing community"` to `"Join India's First peer-to-peer ride sharing community"`
+- Line 610: Change placeholder from `"John Doe"` to `"Your Name"`
+- Lines 545-548 (login checkbox): Change from `"I am 18 or older"` to `"I am 18 or older and accept all terms and conditions"` with "terms and conditions" as a link
+- Lines 702-711 (signup checkbox): Same change as login checkbox
+
+---
+
+## 6. Google Auth Fix
+
+**File: `src/pages/Auth.tsx`**
+
+The current implementation uses `supabase.auth.signInWithOAuth` directly. For Lovable Cloud, this needs to use the `lovable.auth.signInWithOAuth` function instead. This requires:
+1. Running the Configure Social Login tool to generate the Lovable module
+2. Updating `handleGoogleSignIn` to import and use `lovable.auth.signInWithOAuth("google", { redirect_uri: window.location.origin })`
+
+---
+
+## 7. Forgot Password Enhancement
+
+**Status:** Already implemented with proper flow:
+- `handleForgotPassword` sends reset email with toast "Check your inbox"
+- Reset mode detects `?reset=true` query param and `PASSWORD_RECOVERY` event
+- Password update form with validation works
+
+One small fix: the toast message says "Check your inbox for a password reset link" -- update to "Reset link sent. Check your inbox." per requirements.
+
+---
+
+## Technical Details
+
+### Files Modified
+```text
+src/pages/DriverRequests.tsx  -- Auto-accept booking after insert (2-step), set ride to active
+src/pages/RecentRides.tsx     -- Add cancel button for upcoming bookings + show open ride requests
+src/pages/Auth.tsx            -- Text cleanup, checkbox update, Google OAuth via Lovable Cloud, forgot password toast
+src/hooks/useRides.ts         -- Add realtime invalidation for bookings/rides queries
+```
+
+### Database Changes
+```text
+1. CREATE FUNCTION expire_old_ride_requests() -- marks expired requests
+2. pg_cron job every 15 minutes to call the function
+```
+
+### Dependencies
+- Lovable Cloud auth module (generated by Configure Social Login tool) for Google OAuth
+- pg_cron + pg_net extensions for auto-expire (need to be enabled)
+
+### Sequencing
+1. Database migration (expire function) -- can run independently
+2. Configure Social Login tool for Google OAuth -- must run before Auth.tsx changes
+3. All file edits can happen in parallel after steps 1-2
 

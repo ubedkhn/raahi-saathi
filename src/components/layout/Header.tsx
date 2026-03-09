@@ -1,8 +1,9 @@
 import { useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Shield } from "lucide-react";
+import { ArrowLeft, Shield, Bell } from "lucide-react";
 import { useAdminStatus } from "@/hooks/useAdminStatus";
+import { useNotifications } from "@/hooks/useNotifications";
 
 interface RouteConfig {
   title: string;
@@ -26,12 +27,17 @@ const Header = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { data: isAdmin } = useAdminStatus();
+  const { unreadCount } = useNotifications();
 
   const currentRoute = location.pathname;
   const config = routeConfigs[currentRoute] || { title: "Raahi", showBackButton: true };
 
   const handleBack = () => {
-    navigate(-1);
+    if (window.history.length > 1) {
+      navigate(-1);
+    } else {
+      navigate("/dashboard");
+    }
   };
 
   return (
@@ -63,8 +69,21 @@ const Header = () => {
           {config.title}
         </h1>
 
-        {/* Right - Admin Badge */}
+        {/* Right - Notification Bell + Admin Badge */}
         <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => navigate("/notifications")}
+            className="relative min-h-[44px] min-w-[44px]"
+          >
+            <Bell className="h-5 w-5" />
+            {unreadCount > 0 && (
+              <span className="absolute top-1 right-1 bg-destructive text-destructive-foreground text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
+                {unreadCount > 9 ? "9+" : unreadCount}
+              </span>
+            )}
+          </Button>
           {isAdmin && config.showAvatar && (
             <Badge 
               variant="default" 

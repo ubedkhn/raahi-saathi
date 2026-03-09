@@ -219,6 +219,39 @@ export type Database = {
           },
         ]
       }
+      notifications: {
+        Row: {
+          created_at: string
+          id: string
+          message: string
+          metadata: Json | null
+          read: boolean
+          title: string
+          type: Database["public"]["Enums"]["notification_type"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          message: string
+          metadata?: Json | null
+          read?: boolean
+          title: string
+          type: Database["public"]["Enums"]["notification_type"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          message?: string
+          metadata?: Json | null
+          read?: boolean
+          title?: string
+          type?: Database["public"]["Enums"]["notification_type"]
+          user_id?: string
+        }
+        Relationships: []
+      }
       payments: {
         Row: {
           amount: number
@@ -941,6 +974,13 @@ export type Database = {
         | "in_progress"
       gender: "male" | "female" | "other"
       kyc_status: "pending" | "verified" | "rejected"
+      notification_type:
+        | "booking_accepted"
+        | "ride_booked"
+        | "ride_cancelled"
+        | "payment_received"
+        | "booking_started"
+        | "ride_completed"
       payment_method: "upi" | "card" | "wallet" | "cash"
       payment_status: "pending" | "completed" | "failed" | "refunded"
       ride_status: "scheduled" | "active" | "completed" | "cancelled"
@@ -1087,6 +1127,14 @@ export const Constants = {
       ],
       gender: ["male", "female", "other"],
       kyc_status: ["pending", "verified", "rejected"],
+      notification_type: [
+        "booking_accepted",
+        "ride_booked",
+        "ride_cancelled",
+        "payment_received",
+        "booking_started",
+        "ride_completed",
+      ],
       payment_method: ["upi", "card", "wallet", "cash"],
       payment_status: ["pending", "completed", "failed", "refunded"],
       ride_status: ["scheduled", "active", "completed", "cancelled"],

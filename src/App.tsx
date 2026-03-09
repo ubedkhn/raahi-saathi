@@ -33,6 +33,8 @@ import Wallet from "./pages/Wallet";
 import Passbook from "./pages/Passbook";
 import EmergencyContacts from "./pages/EmergencyContacts";
 import DriverRequests from "./pages/DriverRequests";
+import Notifications from "./pages/Notifications";
+import Terms from "./pages/Terms";
 
 // Auth-aware root route component
 const RootRoute = () => {
@@ -70,6 +72,7 @@ const App = () => (
             {/* Public routes - NO layout */}
             <Route path="/" element={<RootRoute />} />
             <Route path="/auth" element={<Auth />} />
+            <Route path="/terms" element={<Terms />} />
             <Route path="/admin/login" element={<AdminLogin />} />
             
             {/* Admin routes - WITH admin layout */}
@@ -98,6 +101,7 @@ const App = () => (
               <Route path="/passbook" element={<Passbook />} />
               <Route path="/emergency-contacts" element={<EmergencyContacts />} />
               <Route path="/driver-requests" element={<DriverRequests />} />
+              <Route path="/notifications" element={<Notifications />} />
             </Route>
             
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

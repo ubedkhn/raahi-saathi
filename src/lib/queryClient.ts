@@ -1,53 +1,54 @@
 import { QueryClient } from '@tanstack/react-query';
+import { setCache, getCache, getAllCache, syncQueuedMutations } from './offlineQueue';
+import { supabase } from '@/integrations/supabase/client';
 
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       staleTime: 1000 * 60 * 5, // 5 minutes
-      gcTime: 1000 * 60 * 60 * 24, // 24 hours (formerly cacheTime)
+      gcTime: 1000 * 60 * 60 * 24, // 24 hours
       refetchOnWindowFocus: false,
       retry: 1,
     },
   },
 });
 
-// Set up localStorage persistence for offline support
+const CACHEABLE_KEYS = ['profile', 'rides', 'bookings', 'vehicles', 'notifications'];
+
+function shouldCache(queryKey: unknown[]): boolean {
+  const key = JSON.stringify(queryKey);
+  return CACHEABLE_KEYS.some((k) => key.includes(k));
+}
+
+// Set up IndexedDB persistence
 if (typeof window !== 'undefined') {
-  const CACHE_KEY = 'raahi-query-cache';
-  
-  // Restore from localStorage on init
-  const cached = localStorage.getItem(CACHE_KEY);
-  if (cached) {
-    try {
-      const data = JSON.parse(cached);
-      // Hydrate the cache
-      Object.entries(data).forEach(([key, value]) => {
+  // Restore from IndexedDB on init
+  getAllCache().then((cached) => {
+    Object.entries(cached).forEach(([key, value]) => {
+      try {
         const queryKey = JSON.parse(key);
         queryClient.setQueryData(queryKey, value);
-      });
-    } catch (e) {
-      console.warn('Failed to restore query cache:', e);
-    }
-  }
+      } catch (e) {
+        console.warn('Failed to restore cache entry:', e);
+      }
+    });
+  }).catch((e) => console.warn('Failed to restore IndexedDB cache:', e));
 
-  // Save to localStorage on changes
+  // Save to IndexedDB on changes
   queryClient.getQueryCache().subscribe((event) => {
     if (event.type === 'updated' || event.type === 'added') {
-      const cache: Record<string, unknown> = {};
-      queryClient.getQueryCache().getAll().forEach((query) => {
-        if (query.state.data !== undefined) {
-          // Only cache profile and rides data
-          const key = JSON.stringify(query.queryKey);
-          if (key.includes('profile') || key.includes('rides') || key.includes('bookings') || key.includes('vehicles')) {
-            cache[key] = query.state.data;
-          }
-        }
-      });
-      try {
-        localStorage.setItem(CACHE_KEY, JSON.stringify(cache));
-      } catch (e) {
-        console.warn('Failed to save query cache:', e);
+      const query = event.query;
+      if (query.state.data !== undefined && shouldCache(query.queryKey)) {
+        const key = JSON.stringify(query.queryKey);
+        setCache(key, query.state.data).catch((e) => console.warn('Failed to cache:', e));
       }
     }
+  });
+
+  // Sync queued mutations when back online
+  window.addEventListener('online', () => {
+    syncQueuedMutations(supabase).then(() => {
+      queryClient.invalidateQueries();
+    }).catch((e) => console.warn('Sync failed:', e));
   });
 }
