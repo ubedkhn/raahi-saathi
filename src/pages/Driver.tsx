@@ -59,10 +59,10 @@ const Driver = () => {
 
       {/* KYC Banner */}
       {!kycVerified && (
-        <Card className="border-yellow-500/50 bg-yellow-500/5">
+        <Card className="border-destructive/30 bg-destructive/5">
           <CardContent className="pt-4 pb-4">
             <div className="flex items-center gap-3">
-              <Shield className="h-8 w-8 text-yellow-500" />
+              <Shield className="h-8 w-8 text-destructive" />
               <div className="flex-1">
                 <p className="text-sm font-medium">KYC {profile?.kyc_status === 'pending' ? 'Pending' : 'Required'}</p>
                 <p className="text-xs text-muted-foreground">
