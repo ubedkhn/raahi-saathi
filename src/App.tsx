@@ -33,6 +33,8 @@ import Wallet from "./pages/Wallet";
 import Passbook from "./pages/Passbook";
 import EmergencyContacts from "./pages/EmergencyContacts";
 import DriverRequests from "./pages/DriverRequests";
+import Notifications from "./pages/Notifications";
+import Terms from "./pages/Terms";
 
 // Auth-aware root route component
 const RootRoute = () => {
