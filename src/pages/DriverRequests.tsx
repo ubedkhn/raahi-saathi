@@ -64,8 +64,25 @@ const DriverRequests = () => {
         .order("preferred_time", { ascending: true });
 
       if (error) throw error;
-      // Exclude own requests
-      setRequests((data || []).filter((r) => r.rider_id !== user?.id));
+      const filtered = (data || []).filter((r) => r.rider_id !== user?.id);
+
+      // Fetch rider profiles for avatars
+      if (filtered.length > 0) {
+        const riderIds = [...new Set(filtered.map((r) => r.rider_id))];
+        const { data: profiles } = await supabase
+          .from("public_profiles_view")
+          .select("id, name, avatar_url")
+          .in("id", riderIds);
+
+        const profileMap = new Map((profiles || []).map((p) => [p.id, p]));
+        const withProfiles = filtered.map((r) => ({
+          ...r,
+          rider_profile: profileMap.get(r.rider_id) || undefined,
+        }));
+        setRequests(withProfiles);
+      } else {
+        setRequests([]);
+      }
     } catch (error: any) {
       console.error("Error loading requests:", error);
     } finally {
