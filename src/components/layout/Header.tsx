@@ -1,8 +1,9 @@
 import { useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Shield } from "lucide-react";
+import { ArrowLeft, Shield, Bell } from "lucide-react";
 import { useAdminStatus } from "@/hooks/useAdminStatus";
+import { useNotifications } from "@/hooks/useNotifications";
 
 interface RouteConfig {
   title: string;
