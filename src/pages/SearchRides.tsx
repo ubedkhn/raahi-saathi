@@ -144,40 +144,29 @@ const SearchRides = () => {
       const dropLat = destinationLocation?.latitude ?? Number(ride.destination_lat);
       const dropLng = destinationLocation?.longitude ?? Number(ride.destination_lng);
 
-      const { data: bookingData, error } = await supabase.from("bookings").insert([{
-        ride_id: rideId,
-        rider_id: user.id,
-        pickup_address: originLocation?.address || ride.origin_address,
-        pickup_lat: pickupLat,
-        pickup_lng: pickupLng,
-        drop_address: destinationLocation?.address || ride.destination_address,
-        drop_lat: dropLat,
-        drop_lng: dropLng,
-        fare_amount: calculatedFare,
-        status: "pending",
-      }]).select().single();
+      // Book via server-side validation
+      const { data: bookingResp, error: invokeError } = await supabase.functions.invoke('validate-booking', {
+        body: {
+          ride_id: rideId,
+          pickup_address: originLocation?.address || ride.origin_address,
+          pickup_lat: pickupLat,
+          pickup_lng: pickupLng,
+          drop_address: destinationLocation?.address || ride.destination_address,
+          drop_lat: dropLat,
+          drop_lng: dropLng,
+        },
+      });
 
-      if (error) throw error;
+      if (invokeError) throw invokeError;
+      const result = typeof bookingResp === 'string' ? JSON.parse(bookingResp) : bookingResp;
+      if (result.error) throw new Error(result.error);
 
       toast.success("Ride booked successfully!", {
         description: "Waiting for driver to accept...",
       });
       
       // Set booking ID for tracking
-      setActiveBookingId(bookingData.id);
-      
-      // Simulate driver accepting after 2 seconds (in real app, driver would accept)
-      setTimeout(async () => {
-        await supabase
-          .from('bookings')
-          .update({ status: 'accepted' })
-          .eq('id', bookingData.id);
-        
-        setShowTracking(true);
-        toast.success("Driver accepted your ride!", {
-          description: "Track your driver in real-time",
-        });
-      }, 2000);
+      setActiveBookingId(result.booking.id);
       
       // Refresh search
       handleSearch(new Event("submit") as any);

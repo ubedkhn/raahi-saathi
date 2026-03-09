@@ -374,25 +374,25 @@ const PostRide = () => {
       // Combine date + time into ISO timestamp
       const startTime = new Date(`${date}T${time}`).toISOString();
 
-      // Insert ride with geocoded coordinates
-      const { error } = await supabase
-        .from('rides')
-        .insert({
-          driver_id: user.id,
+      // Create ride via server-side validation
+      const { data: rideResp, error: invokeError } = await supabase.functions.invoke('validate-ride', {
+        body: {
           vehicle_id: selectedVehicle,
           origin_address: originLocation.address,
-          destination_address: destinationLocation.address,
           origin_lat: originLocation.latitude,
           origin_lng: originLocation.longitude,
+          destination_address: destinationLocation.address,
           destination_lat: destinationLocation.latitude,
           destination_lng: destinationLocation.longitude,
           start_time: startTime,
           seats_available: seatsAvailable,
           price_per_km: parseFloat(pricePerKm),
-          status: 'scheduled'
-        });
+        },
+      });
 
-      if (error) throw error;
+      if (invokeError) throw invokeError;
+      const result = typeof rideResp === 'string' ? JSON.parse(rideResp) : rideResp;
+      if (result.error) throw new Error(result.error);
 
       // Invalidate rides cache
       queryClient.invalidateQueries({ queryKey: ['my-rides'] });
