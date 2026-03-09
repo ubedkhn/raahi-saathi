@@ -33,7 +33,11 @@ const Header = () => {
   const config = routeConfigs[currentRoute] || { title: "Raahi", showBackButton: true };
 
   const handleBack = () => {
-    navigate(-1);
+    if (window.history.length > 1) {
+      navigate(-1);
+    } else {
+      navigate("/dashboard");
+    }
   };
 
   return (
