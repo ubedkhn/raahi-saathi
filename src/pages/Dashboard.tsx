@@ -1,24 +1,18 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { AlertTriangle, Navigation, Clock, Search, Shield, MapPin } from "lucide-react";
+import { Search, MapPin, Clock, Home, Briefcase, Star } from "lucide-react";
 import { useProfile } from "@/hooks/useProfile";
-import { useAdminStatus } from "@/hooks/useAdminStatus";
 import { LocationInput, LocationData } from "@/components/common";
-import NearbyRidesMap from "@/components/dashboard/NearbyRidesMap";
 import { reverseGeocode } from "@/utils/geocoding";
+import { cn } from "@/lib/utils";
 
 const Dashboard = () => {
   const navigate = useNavigate();
   const { data: profile, isLoading: profileLoading } = useProfile();
-  const { data: isAdmin } = useAdminStatus();
-  const [nearbyRides, setNearbyRides] = useState<any[]>([]);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [originAddress, setOriginAddress] = useState("");
-  const [destination, setDestination] = useState<LocationData | null>(null);
+  const [showSearch, setShowSearch] = useState(false);
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -42,41 +36,16 @@ const Dashboard = () => {
     }
   }, [navigate]);
 
-  useEffect(() => {
-    if (userLocation) loadNearbyRides();
-  }, [userLocation]);
-
-  const loadNearbyRides = async () => {
-    if (!userLocation) return;
-    try {
-      const { data: rides } = await supabase
-        .from("rides")
-        .select("*, vehicles(*)")
-        .eq("status", "scheduled")
-        .gte("start_time", new Date().toISOString());
-
-      const filtered = (rides || []).filter(ride => {
-        const R = 6371;
-        const dLat = (Number(ride.origin_lat) - userLocation.lat) * Math.PI / 180;
-        const dLon = (Number(ride.origin_lng) - userLocation.lng) * Math.PI / 180;
-        const a = Math.sin(dLat/2)**2 + Math.cos(userLocation.lat*Math.PI/180) * Math.cos(Number(ride.origin_lat)*Math.PI/180) * Math.sin(dLon/2)**2;
-        return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)) <= 0.15;
-      });
-      setNearbyRides(filtered.slice(0, 5));
-    } catch (e) { console.error(e); }
-  };
-
-  const handleSearch = () => {
-    if (!destination) return;
+  const handleLocationSelect = (location: LocationData) => {
     const params = new URLSearchParams();
     if (userLocation) {
       params.set("origin_lat", String(userLocation.lat));
       params.set("origin_lng", String(userLocation.lng));
       params.set("origin_address", originAddress);
     }
-    params.set("dest_lat", String(destination.latitude));
-    params.set("dest_lng", String(destination.longitude));
-    params.set("dest_address", destination.address);
+    params.set("dest_lat", String(location.latitude));
+    params.set("dest_lng", String(location.longitude));
+    params.set("dest_address", location.address);
     navigate(`/search-rides?${params.toString()}`);
   };
 
@@ -88,107 +57,134 @@ const Dashboard = () => {
     );
   }
 
+  // Quick destination suggestions (placeholders for saved places)
+  const quickDestinations = [
+    { icon: Home, label: "Home", sublabel: "Add home" },
+    { icon: Briefcase, label: "Work", sublabel: "Add work" },
+    { icon: Star, label: "Saved", sublabel: "View all" },
+  ];
+
   return (
-    <div className="max-w-7xl mx-auto px-4 py-6 pb-24">
-      {/* Welcome */}
-      <div className="mb-6">
-        <h2 className="text-xl font-bold mb-1">Welcome, {profile?.name}!</h2>
-        <p className="text-sm text-muted-foreground">Where would you like to go today?</p>
+    <div className="min-h-screen bg-accent/30 flex flex-col">
+      {/* Header with Search Bar */}
+      <div className="bg-card px-4 pt-2 pb-4 shadow-sm">
+        {/* Search Bar Trigger */}
+        <button
+          onClick={() => setShowSearch(true)}
+          className="w-full flex items-center gap-3 px-4 py-3 bg-background rounded-full border border-border shadow-sm hover:shadow-md transition-shadow"
+        >
+          <Search className="h-5 w-5 text-muted-foreground" />
+          <span className="text-foreground font-medium">Where are you going?</span>
+        </button>
       </div>
 
-      {/* Search Section */}
-      <Card className="mb-6">
-        <CardContent className="pt-6 space-y-3">
-          {/* Origin (auto-filled) */}
-          <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50 border">
-            <MapPin className="h-4 w-4 text-primary flex-shrink-0" />
-            <span className="text-sm truncate">{originAddress || "Detecting your location..."}</span>
+      {/* Main Content */}
+      <div className="flex-1 px-4 py-6">
+        {/* Current Location Indicator */}
+        <div className="flex items-center gap-2 mb-6">
+          <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+          <span className="text-sm text-muted-foreground truncate">
+            {originAddress || "Detecting location..."}
+          </span>
+        </div>
+
+        {/* Quick Destinations */}
+        <div className="grid grid-cols-3 gap-3 mb-8">
+          {quickDestinations.map((dest, index) => (
+            <button
+              key={index}
+              className="flex flex-col items-center justify-center p-4 bg-card rounded-xl border border-border hover:border-primary/50 transition-colors"
+              onClick={() => setShowSearch(true)}
+            >
+              <div className="w-10 h-10 rounded-full bg-accent flex items-center justify-center mb-2">
+                <dest.icon className="h-5 w-5 text-primary" />
+              </div>
+              <span className="text-sm font-medium text-foreground">{dest.label}</span>
+              <span className="text-xs text-muted-foreground">{dest.sublabel}</span>
+            </button>
+          ))}
+        </div>
+
+        {/* Recent Places Skeleton */}
+        <div className="space-y-3">
+          <h3 className="text-sm font-semibold text-foreground mb-3">Recent Places</h3>
+          {[1, 2, 3].map((_, index) => (
+            <div
+              key={index}
+              className="flex items-center gap-3 p-3 bg-card rounded-lg border border-border"
+            >
+              <div className="w-8 h-8 rounded-full bg-accent flex items-center justify-center">
+                <Clock className="h-4 w-4 text-muted-foreground" />
+              </div>
+              <div className="flex-1">
+                <div className="h-3 w-32 bg-muted rounded animate-pulse mb-1" />
+                <div className="h-2 w-48 bg-muted/50 rounded animate-pulse" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Hero Illustration Section */}
+      <div className="px-4 pb-24">
+        <div className="relative bg-gradient-to-br from-accent/50 to-primary/5 rounded-2xl p-6 overflow-hidden">
+          {/* Decorative elements */}
+          <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full -translate-y-1/2 translate-x-1/2" />
+          <div className="absolute bottom-0 left-0 w-24 h-24 bg-secondary/10 rounded-full translate-y-1/2 -translate-x-1/2" />
+          
+          <div className="relative z-10">
+            <h2 className="text-2xl font-bold text-primary italic mb-2">#goRaahi</h2>
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <span>🇮🇳</span>
+              <span>Made for India</span>
+            </div>
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <span>❤️</span>
+              <span>Peer-to-peer rides</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Full Screen Search Modal */}
+      {showSearch && (
+        <div className="fixed inset-0 bg-background z-50 flex flex-col">
+          {/* Search Header */}
+          <div className="p-4 border-b border-border">
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setShowSearch(false)}
+                className="p-2 -ml-2 hover:bg-muted rounded-full transition-colors"
+              >
+                <MapPin className="h-5 w-5 text-muted-foreground" />
+              </button>
+              <div className="flex-1">
+                <LocationInput
+                  placeholder="Where are you going?"
+                  onLocationSelect={handleLocationSelect}
+                  icon="destination"
+                  className="border-0 shadow-none"
+                />
+              </div>
+            </div>
+            
+            {/* Origin display */}
+            <div className="flex items-center gap-3 mt-3 px-2">
+              <div className="w-2 h-2 rounded-full bg-primary" />
+              <span className="text-sm text-muted-foreground truncate">
+                From: {originAddress || "Current location"}
+              </span>
+            </div>
           </div>
 
-          {/* Destination input */}
-          <LocationInput
-            placeholder="Where are you going?"
-            onLocationSelect={(loc) => setDestination(loc)}
-            icon="destination"
-          />
-
-          <Button
-            onClick={handleSearch}
-            disabled={!destination}
-            className="w-full min-h-[44px] font-semibold"
-          >
-            <Search className="h-4 w-4 mr-2" />
-            Search Rides
-          </Button>
-        </CardContent>
-      </Card>
-
-      {/* Nearby Rides */}
-      {userLocation && (
-        <div className="space-y-3 mb-6">
-          <NearbyRidesMap userLocation={userLocation} nearbyRides={nearbyRides} />
-          {nearbyRides.length > 0 && (
-            <div>
-              <p className="text-xs text-muted-foreground mb-2 flex items-center gap-1">
-                <Navigation className="w-3 h-3" /> {nearbyRides.length} ride(s) within 150m
-              </p>
-              <div className="flex overflow-x-auto gap-3 pb-2 snap-x snap-mandatory -mx-2 px-2">
-                {nearbyRides.map((ride) => (
-                  <div
-                    key={ride.id}
-                    className="min-w-[260px] snap-start flex-shrink-0 p-3 border rounded-lg hover:shadow-md transition-shadow cursor-pointer bg-card"
-                    onClick={() => navigate('/search-rides')}
-                  >
-                    <div className="font-medium text-sm truncate">{ride.origin_address}</div>
-                    <div className="text-xs text-muted-foreground truncate">→ {ride.destination_address}</div>
-                    <div className="flex items-center justify-between mt-2">
-                      <div className="text-xs text-muted-foreground flex items-center gap-1">
-                        <Clock className="w-3 h-3" />
-                        {new Date(ride.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </div>
-                      <Badge variant="outline" className="text-xs">₹{ride.price_per_km}/km</Badge>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
+          {/* Search suggestions area */}
+          <div className="flex-1 p-4">
+            <p className="text-sm text-muted-foreground text-center mt-8">
+              Start typing to search for destinations
+            </p>
+          </div>
         </div>
       )}
-
-      {/* Quick Actions */}
-      <div className="grid md:grid-cols-2 gap-4">
-        {isAdmin && (
-          <Card className="cursor-pointer active:shadow-md transition-shadow border-primary bg-gradient-to-r from-primary/10 to-primary/5" onClick={() => navigate('/admin')}>
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-primary rounded-lg">
-                  <Shield className="w-6 h-6 text-primary-foreground" />
-                </div>
-                <div>
-                  <h3 className="font-semibold text-primary">Admin Portal</h3>
-                  <p className="text-sm text-muted-foreground">Manage platform</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-        <Card className="cursor-pointer active:shadow-md transition-shadow" onClick={() => navigate('/sos')}>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <AlertTriangle className="w-8 h-8 text-destructive" />
-              <div>
-                <h3 className="font-semibold">SOS / Emergency</h3>
-                <p className="text-sm text-muted-foreground">
-                  <span className="text-primary cursor-pointer" onClick={(e) => { e.stopPropagation(); navigate('/emergency-contacts'); }}>
-                    Add Emergency Contacts
-                  </span>
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
     </div>
   );
 };
