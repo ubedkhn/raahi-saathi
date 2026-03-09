@@ -27,6 +27,7 @@ const Header = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { data: isAdmin } = useAdminStatus();
+  const { unreadCount } = useNotifications();
 
   const currentRoute = location.pathname;
   const config = routeConfigs[currentRoute] || { title: "Raahi", showBackButton: true };
