@@ -30,6 +30,7 @@ import ManageRide from "./pages/ManageRide";
 import Chats from "./pages/Chats";
 import Support from "./pages/Support";
 import Wallet from "./pages/Wallet";
+import Driver from "./pages/Driver";
 import Passbook from "./pages/Passbook";
 import EmergencyContacts from "./pages/EmergencyContacts";
 import DriverRequests from "./pages/DriverRequests";
