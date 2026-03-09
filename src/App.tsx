@@ -99,6 +99,7 @@ const App = () => (
               <Route path="/chats" element={<Chats />} />
               <Route path="/support" element={<Support />} />
               <Route path="/wallet" element={<Wallet />} />
+              <Route path="/driver" element={<Driver />} />
               <Route path="/passbook" element={<Passbook />} />
               <Route path="/emergency-contacts" element={<EmergencyContacts />} />
               <Route path="/driver-requests" element={<DriverRequests />} />
