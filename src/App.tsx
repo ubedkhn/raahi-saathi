@@ -72,6 +72,7 @@ const App = () => (
             {/* Public routes - NO layout */}
             <Route path="/" element={<RootRoute />} />
             <Route path="/auth" element={<Auth />} />
+            <Route path="/terms" element={<Terms />} />
             <Route path="/admin/login" element={<AdminLogin />} />
             
             {/* Admin routes - WITH admin layout */}
