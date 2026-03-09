@@ -209,6 +209,14 @@ const DriverRequests = () => {
         requests.map((req) => (
           <Card key={req.id} className="overflow-hidden">
             <CardContent className="pt-4 space-y-3">
+              {/* Rider info */}
+              <div className="flex items-center gap-3">
+                <Avatar className="h-9 w-9">
+                  <AvatarImage src={req.rider_profile?.avatar_url || undefined} />
+                  <AvatarFallback><User className="h-4 w-4" /></AvatarFallback>
+                </Avatar>
+                <span className="text-sm font-medium">{req.rider_profile?.name || "Rider"}</span>
+              </div>
               <div className="space-y-2">
                 <div className="flex items-center gap-2 text-sm">
                   <MapPin className="w-4 h-4 text-primary flex-shrink-0" />
