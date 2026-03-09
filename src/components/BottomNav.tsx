@@ -1,5 +1,5 @@
 import { useNavigate, useLocation } from "react-router-dom";
-import { Home, Clock, Wallet, User, PlusCircle } from "lucide-react";
+import { Home, Clock, Car, User, PlusCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const BottomNav = () => {
