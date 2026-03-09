@@ -23,6 +23,10 @@ interface RideRequest {
   seats_needed: number;
   status: string;
   created_at: string;
+  rider_profile?: {
+    name: string;
+    avatar_url: string | null;
+  };
 }
 
 const DriverRequests = () => {
