@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { Search, MapPin, Clock, Home, Briefcase, Star } from "lucide-react";
+import { Search, MapPin, Clock, Home, Briefcase, Star, AlertTriangle } from "lucide-react";
 import { useProfile } from "@/hooks/useProfile";
 import { LocationInput, LocationData } from "@/components/common";
 import { reverseGeocode } from "@/utils/geocoding";
@@ -145,6 +145,15 @@ const Dashboard = () => {
           </div>
         </div>
       </div>
+
+      {/* SOS Button */}
+      <button
+        onClick={() => navigate("/sos")}
+        className="fixed bottom-20 right-4 z-40 bg-destructive text-destructive-foreground rounded-full p-4 shadow-lg hover:opacity-90 active:scale-95 transition-all"
+        aria-label="Emergency SOS"
+      >
+        <AlertTriangle className="h-6 w-6" />
+      </button>
 
       {/* Full Screen Search Modal */}
       {showSearch && (

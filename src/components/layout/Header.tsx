@@ -21,6 +21,15 @@ const routeConfigs: Record<string, RouteConfig> = {
   "/sos": { title: "Emergency SOS", showBackButton: false },
   "/settings": { title: "Settings", showBackButton: true },
   "/chats": { title: "Chats", showBackButton: false },
+  "/driver": { title: "Driver", showBackButton: true },
+  "/wallet": { title: "Wallet", showBackButton: true },
+  "/passbook": { title: "Passbook", showBackButton: true },
+  "/notifications": { title: "Notifications", showBackButton: true },
+  "/emergency-contacts": { title: "Emergency Contacts", showBackButton: true },
+  "/support": { title: "Support", showBackButton: true },
+  "/driver-requests": { title: "Ride Requests", showBackButton: true },
+  "/request-ride": { title: "Request a Ride", showBackButton: true },
+  "/terms": { title: "Terms", showBackButton: true },
 };
 
 const Header = () => {
@@ -41,17 +50,17 @@ const Header = () => {
   };
 
   return (
-    <header 
+    <header
       className="fixed top-0 left-0 right-0 h-14 bg-card border-b border-border z-50 shadow-sm"
       style={{ paddingTop: "env(safe-area-inset-top)" }}
     >
-      <div className="h-full max-w-7xl mx-auto px-4 flex items-center justify-between">
-        {/* Left - Back Button or Spacer */}
-        <div className="w-10">
+      <div className="h-full max-w-7xl mx-auto px-4 flex items-center">
+        {/* Left */}
+        <div className="w-12 flex-shrink-0">
           {config.showBackButton && (
-            <Button 
-              variant="ghost" 
-              size="icon" 
+            <Button
+              variant="ghost"
+              size="icon"
               onClick={handleBack}
               className="min-h-[44px] min-w-[44px] active:bg-accent"
             >
@@ -61,16 +70,16 @@ const Header = () => {
         </div>
 
         {/* Center - Title */}
-        <h1 
-          className={`text-xl font-bold ${
+        <h1
+          className={`flex-1 text-center text-lg font-bold truncate ${
             currentRoute === "/sos" ? "text-destructive" : "text-primary"
           }`}
         >
           {config.title}
         </h1>
 
-        {/* Right - Notification Bell + Admin Badge */}
-        <div className="flex items-center gap-2">
+        {/* Right */}
+        <div className="w-12 flex-shrink-0 flex items-center justify-end gap-1">
           <Button
             variant="ghost"
             size="icon"
@@ -85,10 +94,10 @@ const Header = () => {
             )}
           </Button>
           {isAdmin && config.showAvatar && (
-            <Badge 
-              variant="default" 
+            <Badge
+              variant="default"
               className="bg-primary text-primary-foreground text-xs px-2 py-0.5 cursor-pointer"
-              onClick={() => navigate('/admin')}
+              onClick={() => navigate("/admin")}
             >
               <Shield className="w-3 h-3 mr-1" />
               Admin

@@ -378,9 +378,13 @@ const ManageRide = () => {
         <CardContent className="space-y-6">
           {/* Contact Info */}
           <div className="flex items-center gap-4 p-4 bg-accent/30 rounded-lg">
-            <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
-              <User className="h-6 w-6 text-primary" />
-            </div>
+            {booking.rider_profile?.avatar_url ? (
+              <img src={booking.rider_profile.avatar_url.startsWith('http') ? booking.rider_profile.avatar_url : `${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/avatars/${booking.rider_profile.avatar_url}`} alt={contactLabel} className="w-12 h-12 rounded-full object-cover" />
+            ) : (
+              <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+                <span className="text-primary font-semibold">{contactLabel.charAt(0).toUpperCase()}</span>
+              </div>
+            )}
             <div className="flex-1">
               <h3 className="font-semibold">{contactLabel}</h3>
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
