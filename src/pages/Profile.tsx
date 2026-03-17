@@ -19,6 +19,7 @@ import {
   User, LogOut, Edit, Shield, Star, Car, Bike, Plus, Save,
   CheckCircle, Trash2, ChevronRight, HelpCircle, MessageSquare,
   FileText, Bell, ShieldCheck
+  Settings2
 } from "lucide-react";
 
 const Profile = () => {
