@@ -398,6 +398,9 @@ export type Database = {
           driving_license_photo_url: string | null
           driving_license_verified: boolean | null
           gender: Database["public"]["Enums"]["gender"] | null
+          home_address: string | null
+          home_lat: number | null
+          home_lng: number | null
           id: string
           kyc_document_url: string | null
           kyc_status: Database["public"]["Enums"]["kyc_status"] | null
@@ -408,6 +411,9 @@ export type Database = {
           selfie_url: string | null
           status: string | null
           updated_at: string | null
+          work_address: string | null
+          work_lat: number | null
+          work_lng: number | null
         }
         Insert: {
           aadhaar_number?: string | null
@@ -419,6 +425,9 @@ export type Database = {
           driving_license_photo_url?: string | null
           driving_license_verified?: boolean | null
           gender?: Database["public"]["Enums"]["gender"] | null
+          home_address?: string | null
+          home_lat?: number | null
+          home_lng?: number | null
           id: string
           kyc_document_url?: string | null
           kyc_status?: Database["public"]["Enums"]["kyc_status"] | null
@@ -429,6 +438,9 @@ export type Database = {
           selfie_url?: string | null
           status?: string | null
           updated_at?: string | null
+          work_address?: string | null
+          work_lat?: number | null
+          work_lng?: number | null
         }
         Update: {
           aadhaar_number?: string | null
@@ -440,6 +452,9 @@ export type Database = {
           driving_license_photo_url?: string | null
           driving_license_verified?: boolean | null
           gender?: Database["public"]["Enums"]["gender"] | null
+          home_address?: string | null
+          home_lat?: number | null
+          home_lng?: number | null
           id?: string
           kyc_document_url?: string | null
           kyc_status?: Database["public"]["Enums"]["kyc_status"] | null
@@ -450,6 +465,9 @@ export type Database = {
           selfie_url?: string | null
           status?: string | null
           updated_at?: string | null
+          work_address?: string | null
+          work_lat?: number | null
+          work_lng?: number | null
         }
         Relationships: []
       }
