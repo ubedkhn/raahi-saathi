@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -10,7 +10,7 @@ import { ArrowLeft, Eye, EyeOff, Mail, MapPin, Bell, Check, ChevronRight } from 
 import { z } from "zod";
 import { useUpdateProfile } from "@/hooks/useProfile";
 
-type AuthStep = "email" | "check-email" | "complete-profile" | "permissions" | "reset-password";
+type AuthStep = "email" | "verify-otp" | "complete-profile" | "permissions" | "reset-password";
 
 const Auth = () => {
   const navigate = useNavigate();
@@ -22,6 +22,10 @@ const Auth = () => {
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState("");
   const [emailError, setEmailError] = useState("");
+
+  // OTP
+  const [otp, setOtp] = useState(["", "", "", "", "", ""]);
+  const otpRefs = useRef<(HTMLInputElement | null)[]>([]);
 
   // Profile completion
   const [profileName, setProfileName] = useState("");
@@ -44,6 +48,27 @@ const Auth = () => {
   // Forgot password
   const [showForgotPassword, setShowForgotPassword] = useState(false);
 
+  // Helper: check profile completeness with retry
+  const checkProfileCompletion = async (userId: string, retryCount = 0): Promise<void> => {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("name, phone")
+      .eq("id", userId)
+      .maybeSingle();
+
+    if (!profile && retryCount < 2) {
+      // Race condition with handle_new_user trigger — retry after 1s
+      await new Promise((r) => setTimeout(r, 1000));
+      return checkProfileCompletion(userId, retryCount + 1);
+    }
+
+    if (!profile || profile.name === "New User" || !profile.phone) {
+      setStep("complete-profile");
+    } else {
+      navigate("/dashboard");
+    }
+  };
+
   useEffect(() => {
     const reset = searchParams.get("reset");
     if (reset === "true") {
@@ -55,20 +80,7 @@ const Auth = () => {
         setStep("reset-password");
       }
       if (event === "SIGNED_IN" && session) {
-        // Check if profile needs completion
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("name, phone")
-          .eq("id", session.user.id)
-          .maybeSingle();
-
-        if (profile && (profile.name === "New User" || !profile.phone)) {
-          setStep("complete-profile");
-        } else if (step === "check-email") {
-          setStep("permissions");
-        } else {
-          navigate("/dashboard");
-        }
+        await checkProfileCompletion(session.user.id);
       }
     });
 
@@ -88,7 +100,14 @@ const Auth = () => {
     return () => clearInterval(interval);
   }, [resendTimer]);
 
-  const handleSendMagicLink = async (e: React.FormEvent) => {
+  // Auto-focus first OTP input when step changes
+  useEffect(() => {
+    if (step === "verify-otp") {
+      setTimeout(() => otpRefs.current[0]?.focus(), 100);
+    }
+  }, [step]);
+
+  const handleSendOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     setEmailError("");
     const result = z.string().trim().email("Enter a valid email").safeParse(email);
@@ -100,13 +119,61 @@ const Auth = () => {
     try {
       const { error } = await supabase.auth.signInWithOtp({
         email: result.data,
-        options: { emailRedirectTo: `${window.location.origin}/auth` },
       });
       if (error) throw error;
-      setStep("check-email");
+      setStep("verify-otp");
       setResendTimer(30);
     } catch (error: any) {
-      toast({ title: "Error", description: error.message || "Failed to send magic link", variant: "destructive" });
+      toast({ title: "Error", description: error.message || "Failed to send OTP", variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleOtpChange = (index: number, value: string) => {
+    if (!/^\d*$/.test(value)) return;
+    const newOtp = [...otp];
+    newOtp[index] = value.slice(-1);
+    setOtp(newOtp);
+    if (value && index < 5) {
+      otpRefs.current[index + 1]?.focus();
+    }
+  };
+
+  const handleOtpKeyDown = (index: number, e: React.KeyboardEvent) => {
+    if (e.key === "Backspace" && !otp[index] && index > 0) {
+      otpRefs.current[index - 1]?.focus();
+    }
+  };
+
+  const handleOtpPaste = (e: React.ClipboardEvent) => {
+    e.preventDefault();
+    const pasted = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 6);
+    if (pasted.length === 6) {
+      setOtp(pasted.split(""));
+      otpRefs.current[5]?.focus();
+    }
+  };
+
+  const handleVerifyOtp = async () => {
+    const code = otp.join("");
+    if (code.length !== 6) {
+      toast({ title: "Incomplete OTP", description: "Enter all 6 digits", variant: "destructive" });
+      return;
+    }
+    setLoading(true);
+    try {
+      const { error } = await supabase.auth.verifyOtp({
+        email,
+        token: code,
+        type: "email",
+      });
+      if (error) throw error;
+      // SIGNED_IN event will handle the rest via onAuthStateChange
+    } catch (error: any) {
+      toast({ title: "Invalid OTP", description: error.message || "Please check the code and try again", variant: "destructive" });
+      setOtp(["", "", "", "", "", ""]);
+      otpRefs.current[0]?.focus();
     } finally {
       setLoading(false);
     }
@@ -116,13 +183,11 @@ const Auth = () => {
     if (resendTimer > 0) return;
     setLoading(true);
     try {
-      const { error } = await supabase.auth.signInWithOtp({
-        email,
-        options: { emailRedirectTo: `${window.location.origin}/auth` },
-      });
+      const { error } = await supabase.auth.signInWithOtp({ email });
       if (error) throw error;
       setResendTimer(30);
-      toast({ title: "Link sent!", description: "Check your email inbox." });
+      setOtp(["", "", "", "", "", ""]);
+      toast({ title: "OTP sent!", description: "Check your email inbox." });
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
     } finally {
@@ -178,12 +243,15 @@ const Auth = () => {
     setLoading(true);
     try {
       const { lovable } = await import("@/integrations/lovable/index");
-      const { error } = await lovable.auth.signInWithOAuth("google", {
+      const result = await lovable.auth.signInWithOAuth("google", {
         redirect_uri: window.location.origin,
       });
-      if (error) throw error;
-    } catch {
-      toast({ title: "Error", description: "Unable to sign in with Google.", variant: "destructive" });
+      if (result.error) {
+        throw result.error;
+      }
+    } catch (error: any) {
+      const msg = error?.message || "Unable to sign in with Google. Please try again.";
+      toast({ title: "Google Sign-In Failed", description: msg, variant: "destructive" });
     } finally {
       setLoading(false);
     }
@@ -282,7 +350,6 @@ const Auth = () => {
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      {/* Top branding */}
       <div className="flex-1 flex flex-col items-center justify-center p-6">
         <div className="w-full max-w-md">
           {/* Step: Email Entry */}
@@ -293,7 +360,7 @@ const Auth = () => {
                 <p className="text-muted-foreground">India's peer-to-peer ride sharing</p>
               </div>
 
-              <form onSubmit={handleSendMagicLink} className="space-y-4">
+              <form onSubmit={handleSendOtp} className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="email" className="text-base">Email address</Label>
                   <Input
@@ -360,26 +427,53 @@ const Auth = () => {
             </div>
           )}
 
-          {/* Step: Check Email */}
-          {step === "check-email" && (
+          {/* Step: Verify OTP */}
+          {step === "verify-otp" && (
             <div className="text-center space-y-6">
               <div className="w-20 h-20 mx-auto rounded-full bg-primary/10 flex items-center justify-center">
                 <Mail className="h-10 w-10 text-primary" />
               </div>
               <div className="space-y-2">
-                <h2 className="text-2xl font-bold">Check your email</h2>
+                <h2 className="text-2xl font-bold">Enter verification code</h2>
                 <p className="text-muted-foreground">
-                  We sent a magic link to <span className="font-medium text-foreground">{email}</span>
+                  We sent a 6-digit code to <span className="font-medium text-foreground">{email}</span>
                 </p>
-                <p className="text-sm text-muted-foreground">Click the link in the email to sign in</p>
               </div>
-              <Button variant="outline" className="w-full min-h-[48px]" onClick={handleResend} disabled={resendTimer > 0 || loading}>
-                {resendTimer > 0 ? `Resend in ${resendTimer}s` : "Resend Link"}
+
+              {/* OTP Input */}
+              <div className="flex justify-center gap-2" onPaste={handleOtpPaste}>
+                {otp.map((digit, i) => (
+                  <input
+                    key={i}
+                    ref={(el) => { otpRefs.current[i] = el; }}
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={1}
+                    value={digit}
+                    onChange={(e) => handleOtpChange(i, e.target.value)}
+                    onKeyDown={(e) => handleOtpKeyDown(i, e)}
+                    className="w-12 h-14 text-center text-xl font-semibold border-2 border-border rounded-lg bg-background focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+                  />
+                ))}
+              </div>
+
+              <Button
+                className="w-full min-h-[48px] text-base font-semibold"
+                onClick={handleVerifyOtp}
+                disabled={loading || otp.join("").length !== 6}
+              >
+                {loading ? "Verifying..." : "Verify & Continue"}
               </Button>
-              <button type="button" onClick={() => { setStep("email"); setShowForgotPassword(false); }}
-                className="text-sm text-muted-foreground hover:text-foreground">
-                ← Use a different email
-              </button>
+
+              <div className="space-y-2">
+                <Button variant="outline" className="w-full min-h-[44px]" onClick={handleResend} disabled={resendTimer > 0 || loading}>
+                  {resendTimer > 0 ? `Resend in ${resendTimer}s` : "Resend Code"}
+                </Button>
+                <button type="button" onClick={() => { setStep("email"); setOtp(["", "", "", "", "", ""]); }}
+                  className="text-sm text-muted-foreground hover:text-foreground">
+                  ← Use a different email
+                </button>
+              </div>
             </div>
           )}
 

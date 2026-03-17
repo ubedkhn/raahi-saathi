@@ -1,23 +1,36 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { Search, MapPin, Clock, Home, Briefcase, Star, AlertTriangle } from "lucide-react";
-import { useProfile } from "@/hooks/useProfile";
+import { Search, MapPin, Clock, Home, Briefcase, Star, AlertTriangle, X } from "lucide-react";
+import { useProfile, useUpdateProfile } from "@/hooks/useProfile";
 import { LocationInput, LocationData } from "@/components/common";
 import { reverseGeocode } from "@/utils/geocoding";
-import { cn } from "@/lib/utils";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+
+interface RecentDest {
+  address: string;
+  lat: number;
+  lng: number;
+}
 
 const Dashboard = () => {
   const navigate = useNavigate();
   const { data: profile, isLoading: profileLoading } = useProfile();
+  const updateProfile = useUpdateProfile();
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [originAddress, setOriginAddress] = useState("");
   const [showSearch, setShowSearch] = useState(false);
+  const [recentDests, setRecentDests] = useState<RecentDest[]>([]);
+
+  // Save address dialog
+  const [saveAddressType, setSaveAddressType] = useState<"home" | "work" | null>(null);
 
   useEffect(() => {
     const checkAuth = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) navigate("/auth");
+      else loadRecentDestinations(session.user.id);
     };
     checkAuth();
 
@@ -36,6 +49,19 @@ const Dashboard = () => {
     }
   }, [navigate]);
 
+  const loadRecentDestinations = async (userId: string) => {
+    const { data } = await supabase
+      .from("bookings")
+      .select("drop_address, drop_lat, drop_lng")
+      .eq("rider_id", userId)
+      .eq("status", "completed")
+      .order("created_at", { ascending: false })
+      .limit(3);
+    if (data && data.length > 0) {
+      setRecentDests(data.map((b) => ({ address: b.drop_address, lat: Number(b.drop_lat), lng: Number(b.drop_lng) })));
+    }
+  };
+
   const handleLocationSelect = (location: LocationData) => {
     const params = new URLSearchParams();
     if (userLocation) {
@@ -49,6 +75,39 @@ const Dashboard = () => {
     navigate(`/search-rides?${params.toString()}`);
   };
 
+  const navigateToDestination = (dest: RecentDest) => {
+    const params = new URLSearchParams();
+    if (userLocation) {
+      params.set("origin_lat", String(userLocation.lat));
+      params.set("origin_lng", String(userLocation.lng));
+      params.set("origin_address", originAddress);
+    }
+    params.set("dest_lat", String(dest.lat));
+    params.set("dest_lng", String(dest.lng));
+    params.set("dest_address", dest.address);
+    navigate(`/search-rides?${params.toString()}`);
+  };
+
+  const handleQuickDestClick = (type: "home" | "work") => {
+    const addr = type === "home" ? profile?.home_address : profile?.work_address;
+    const lat = type === "home" ? profile?.home_lat : profile?.work_lat;
+    const lng = type === "home" ? profile?.home_lng : profile?.work_lng;
+    if (addr && lat && lng) {
+      navigateToDestination({ address: addr, lat: Number(lat), lng: Number(lng) });
+    } else {
+      setSaveAddressType(type);
+    }
+  };
+
+  const handleSaveAddress = (location: LocationData) => {
+    if (!saveAddressType) return;
+    const updates = saveAddressType === "home"
+      ? { home_address: location.address, home_lat: location.latitude, home_lng: location.longitude }
+      : { work_address: location.address, work_lat: location.latitude, work_lng: location.longitude };
+    updateProfile.mutate(updates);
+    setSaveAddressType(null);
+  };
+
   if (profileLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -57,18 +116,13 @@ const Dashboard = () => {
     );
   }
 
-  // Quick destination suggestions (placeholders for saved places)
-  const quickDestinations = [
-    { icon: Home, label: "Home", sublabel: "Add home" },
-    { icon: Briefcase, label: "Work", sublabel: "Add work" },
-    { icon: Star, label: "Saved", sublabel: "View all" },
-  ];
+  const homeAddr = profile?.home_address;
+  const workAddr = profile?.work_address;
 
   return (
     <div className="min-h-screen bg-accent/30 flex flex-col">
       {/* Header with Search Bar */}
       <div className="bg-card px-4 pt-2 pb-4 shadow-sm">
-        {/* Search Bar Trigger */}
         <button
           onClick={() => setShowSearch(true)}
           className="w-full flex items-center gap-3 px-4 py-3 bg-background rounded-full border border-border shadow-sm hover:shadow-md transition-shadow"
@@ -90,57 +144,105 @@ const Dashboard = () => {
 
         {/* Quick Destinations */}
         <div className="grid grid-cols-3 gap-3 mb-8">
-          {quickDestinations.map((dest, index) => (
-            <button
-              key={index}
-              className="flex flex-col items-center justify-center p-4 bg-card rounded-xl border border-border hover:border-primary/50 transition-colors"
-              onClick={() => setShowSearch(true)}
-            >
-              <div className="w-10 h-10 rounded-full bg-accent flex items-center justify-center mb-2">
-                <dest.icon className="h-5 w-5 text-primary" />
-              </div>
-              <span className="text-sm font-medium text-foreground">{dest.label}</span>
-              <span className="text-xs text-muted-foreground">{dest.sublabel}</span>
-            </button>
-          ))}
+          <button
+            className="flex flex-col items-center justify-center p-4 bg-card rounded-xl border border-border hover:border-primary/50 transition-colors"
+            onClick={() => handleQuickDestClick("home")}
+          >
+            <div className="w-10 h-10 rounded-full bg-accent flex items-center justify-center mb-2">
+              <Home className="h-5 w-5 text-primary" />
+            </div>
+            <span className="text-sm font-medium text-foreground">Home</span>
+            <span className="text-xs text-muted-foreground truncate max-w-full">
+              {homeAddr ? homeAddr.split(",")[0] : "Add home"}
+            </span>
+          </button>
+          <button
+            className="flex flex-col items-center justify-center p-4 bg-card rounded-xl border border-border hover:border-primary/50 transition-colors"
+            onClick={() => handleQuickDestClick("work")}
+          >
+            <div className="w-10 h-10 rounded-full bg-accent flex items-center justify-center mb-2">
+              <Briefcase className="h-5 w-5 text-primary" />
+            </div>
+            <span className="text-sm font-medium text-foreground">Work</span>
+            <span className="text-xs text-muted-foreground truncate max-w-full">
+              {workAddr ? workAddr.split(",")[0] : "Add work"}
+            </span>
+          </button>
+          <button
+            className="flex flex-col items-center justify-center p-4 bg-card rounded-xl border border-border hover:border-primary/50 transition-colors"
+            onClick={() => setShowSearch(true)}
+          >
+            <div className="w-10 h-10 rounded-full bg-accent flex items-center justify-center mb-2">
+              <Star className="h-5 w-5 text-primary" />
+            </div>
+            <span className="text-sm font-medium text-foreground">Saved</span>
+            <span className="text-xs text-muted-foreground">View all</span>
+          </button>
         </div>
 
-        {/* Recent Places Skeleton */}
+        {/* Recent Places */}
         <div className="space-y-3">
           <h3 className="text-sm font-semibold text-foreground mb-3">Recent Places</h3>
-          {[1, 2, 3].map((_, index) => (
-            <div
-              key={index}
-              className="flex items-center gap-3 p-3 bg-card rounded-lg border border-border"
-            >
-              <div className="w-8 h-8 rounded-full bg-accent flex items-center justify-center">
-                <Clock className="h-4 w-4 text-muted-foreground" />
+          {recentDests.length > 0 ? (
+            recentDests.map((dest, index) => (
+              <button
+                key={index}
+                onClick={() => navigateToDestination(dest)}
+                className="flex items-center gap-3 p-3 bg-card rounded-lg border border-border w-full text-left hover:border-primary/30 transition-colors"
+              >
+                <div className="w-8 h-8 rounded-full bg-accent flex items-center justify-center flex-shrink-0">
+                  <Clock className="h-4 w-4 text-muted-foreground" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-foreground truncate">{dest.address.split(",")[0]}</p>
+                  <p className="text-xs text-muted-foreground truncate">{dest.address}</p>
+                </div>
+              </button>
+            ))
+          ) : (
+            [1, 2, 3].map((_, index) => (
+              <div key={index} className="flex items-center gap-3 p-3 bg-card rounded-lg border border-border">
+                <div className="w-8 h-8 rounded-full bg-accent flex items-center justify-center">
+                  <Clock className="h-4 w-4 text-muted-foreground" />
+                </div>
+                <div className="flex-1">
+                  <div className="h-3 w-32 bg-muted rounded animate-pulse mb-1" />
+                  <div className="h-2 w-48 bg-muted/50 rounded animate-pulse" />
+                </div>
               </div>
-              <div className="flex-1">
-                <div className="h-3 w-32 bg-muted rounded animate-pulse mb-1" />
-                <div className="h-2 w-48 bg-muted/50 rounded animate-pulse" />
-              </div>
-            </div>
-          ))}
+            ))
+          )}
         </div>
       </div>
 
-      {/* Hero Illustration Section */}
+      {/* Hero Illustration with Animation */}
       <div className="px-4 pb-24">
         <div className="relative bg-gradient-to-br from-accent/50 to-primary/5 rounded-2xl p-6 overflow-hidden">
-          {/* Decorative elements */}
           <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full -translate-y-1/2 translate-x-1/2" />
           <div className="absolute bottom-0 left-0 w-24 h-24 bg-secondary/10 rounded-full translate-y-1/2 -translate-x-1/2" />
-          
+
+          {/* Animated road + car SVG */}
+          <div className="relative z-10 mb-3 overflow-hidden h-12">
+            <svg viewBox="0 0 300 40" className="w-full h-full" xmlns="http://www.w3.org/2000/svg">
+              {/* Dashed road */}
+              <line x1="0" y1="30" x2="300" y2="30" stroke="hsl(var(--muted-foreground))" strokeWidth="2" strokeDasharray="8 6" opacity="0.3" />
+              {/* Car */}
+              <g className="animate-[driveAcross_6s_ease-in-out_infinite]">
+                <rect x="0" y="16" width="28" height="12" rx="3" fill="hsl(var(--primary))" />
+                <rect x="4" y="10" width="18" height="8" rx="2" fill="hsl(var(--primary))" opacity="0.8" />
+                <circle cx="7" cy="30" r="3" fill="hsl(var(--foreground))" />
+                <circle cx="21" cy="30" r="3" fill="hsl(var(--foreground))" />
+              </g>
+            </svg>
+          </div>
+
           <div className="relative z-10">
             <h2 className="text-2xl font-bold text-primary italic mb-2">#goRaahi</h2>
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <span>🇮🇳</span>
-              <span>Made for India</span>
+              <span>🇮🇳</span><span>Made for India</span>
             </div>
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <span>❤️</span>
-              <span>Peer-to-peer rides</span>
+              <span>❤️</span><span>Peer-to-peer rides</span>
             </div>
           </div>
         </div>
@@ -158,14 +260,13 @@ const Dashboard = () => {
       {/* Full Screen Search Modal */}
       {showSearch && (
         <div className="fixed inset-0 bg-background z-50 flex flex-col">
-          {/* Search Header */}
           <div className="p-4 border-b border-border">
             <div className="flex items-center gap-3">
               <button
                 onClick={() => setShowSearch(false)}
                 className="p-2 -ml-2 hover:bg-muted rounded-full transition-colors"
               >
-                <MapPin className="h-5 w-5 text-muted-foreground" />
+                <X className="h-5 w-5 text-muted-foreground" />
               </button>
               <div className="flex-1">
                 <LocationInput
@@ -176,8 +277,7 @@ const Dashboard = () => {
                 />
               </div>
             </div>
-            
-            {/* Origin display */}
+
             <div className="flex items-center gap-3 mt-3 px-2">
               <div className="w-2 h-2 rounded-full bg-primary" />
               <span className="text-sm text-muted-foreground truncate">
@@ -186,14 +286,75 @@ const Dashboard = () => {
             </div>
           </div>
 
-          {/* Search suggestions area */}
-          <div className="flex-1 p-4">
-            <p className="text-sm text-muted-foreground text-center mt-8">
-              Start typing to search for destinations
-            </p>
+          <div className="flex-1 p-4 overflow-y-auto">
+            {/* Saved Addresses in modal */}
+            {(homeAddr || workAddr) && (
+              <div className="mb-4 space-y-2">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Saved</p>
+                {homeAddr && (
+                  <button onClick={() => { setShowSearch(false); handleQuickDestClick("home"); }}
+                    className="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-accent/50 transition-colors text-left">
+                    <Home className="h-4 w-4 text-primary flex-shrink-0" />
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium truncate">Home</p>
+                      <p className="text-xs text-muted-foreground truncate">{homeAddr}</p>
+                    </div>
+                  </button>
+                )}
+                {workAddr && (
+                  <button onClick={() => { setShowSearch(false); handleQuickDestClick("work"); }}
+                    className="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-accent/50 transition-colors text-left">
+                    <Briefcase className="h-4 w-4 text-primary flex-shrink-0" />
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium truncate">Work</p>
+                      <p className="text-xs text-muted-foreground truncate">{workAddr}</p>
+                    </div>
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* Recent in modal */}
+            {recentDests.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Recent</p>
+                {recentDests.map((dest, i) => (
+                  <button key={i} onClick={() => { setShowSearch(false); navigateToDestination(dest); }}
+                    className="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-accent/50 transition-colors text-left">
+                    <Clock className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium truncate">{dest.address.split(",")[0]}</p>
+                      <p className="text-xs text-muted-foreground truncate">{dest.address}</p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {!homeAddr && !workAddr && recentDests.length === 0 && (
+              <p className="text-sm text-muted-foreground text-center mt-8">
+                Start typing to search for destinations
+              </p>
+            )}
           </div>
         </div>
       )}
+
+      {/* Save Address Dialog */}
+      <Dialog open={!!saveAddressType} onOpenChange={() => setSaveAddressType(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Save {saveAddressType === "home" ? "Home" : "Work"} Address</DialogTitle>
+          </DialogHeader>
+          <div className="pt-2">
+            <LocationInput
+              placeholder={`Search for your ${saveAddressType} address`}
+              onLocationSelect={handleSaveAddress}
+              icon="origin"
+            />
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

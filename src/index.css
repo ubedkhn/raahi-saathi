@@ -197,3 +197,9 @@ All colors MUST be HSL.
     -webkit-tap-highlight-color: transparent;
   }
 }
+
+@keyframes driveAcross {
+  0% { transform: translateX(-30px); }
+  50% { transform: translateX(280px); }
+  100% { transform: translateX(-30px); }
+}
