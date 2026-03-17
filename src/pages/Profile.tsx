@@ -303,8 +303,8 @@ const Profile = () => {
         <div className="space-y-1">
           <button onClick={() => navigate('/settings')} className="flex items-center justify-between w-full py-3 px-1 hover:bg-accent/50 rounded-lg transition-colors">
             <div className="flex items-center gap-3">
-              <HelpCircle className="h-5 w-5 text-muted-foreground" />
-              <span className="text-sm">FAQs</span>
+              <Settings2 className="h-5 w-5 text-muted-foreground" />
+              <span className="text-sm">Settings</span>
             </div>
             <ChevronRight className="h-4 w-4 text-muted-foreground" />
           </button>
