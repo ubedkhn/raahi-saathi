@@ -598,12 +598,13 @@ const ManageRide = () => {
         />
       )}
 
-      {/* Rating Modal (auto-triggered on completion for rider) */}
+      {/* Rating Modal (auto-triggered on completion for both) */}
       {showRatingModal && booking && (
         <RatingModal
           booking={booking}
           isOpen={showRatingModal}
           onClose={() => setShowRatingModal(false)}
+          isDriver={isDriver}
         />
       )}
     </div>
