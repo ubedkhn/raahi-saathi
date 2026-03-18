@@ -124,7 +124,8 @@ const ManageRide = () => {
           setBooking(prev => {
             if (!prev) return null;
             const updated = { ...prev, ...payload.new };
-            if (payload.new.status === 'completed' && prev.status !== 'completed' && !isDriver) {
+            if (payload.new.status === 'completed' && prev.status !== 'completed') {
+              // Prompt both rider AND driver to rate
               setTimeout(() => setShowRatingModal(true), 500);
             }
             // OTP toast for rider: notify when OTP appears
@@ -597,12 +598,13 @@ const ManageRide = () => {
         />
       )}
 
-      {/* Rating Modal (auto-triggered on completion for rider) */}
+      {/* Rating Modal (auto-triggered on completion for both) */}
       {showRatingModal && booking && (
         <RatingModal
           booking={booking}
           isOpen={showRatingModal}
           onClose={() => setShowRatingModal(false)}
+          isDriver={isDriver}
         />
       )}
     </div>

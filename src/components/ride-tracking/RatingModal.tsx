@@ -14,9 +14,10 @@ interface RatingModalProps {
   };
   isOpen: boolean;
   onClose: () => void;
+  isDriver?: boolean;
 }
 
-const RatingModal = ({ booking, isOpen, onClose }: RatingModalProps) => {
+const RatingModal = ({ booking, isOpen, onClose, isDriver = false }: RatingModalProps) => {
   const [rating, setRating] = useState(0);
   const [hover, setHover] = useState(0);
   const [comment, setComment] = useState("");
@@ -34,15 +35,22 @@ const RatingModal = ({ booking, isOpen, onClose }: RatingModalProps) => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
 
-      // Get driver id from ride
-      const { data: driverId } = await supabase.rpc('get_ride_driver_id', { _ride_id: booking.ride_id });
+      let revieweeId: string;
 
-      if (!driverId) throw new Error("Driver not found");
+      if (isDriver) {
+        // Driver rates the rider
+        revieweeId = booking.rider_id!;
+      } else {
+        // Rider rates the driver
+        const { data: driverId } = await supabase.rpc('get_ride_driver_id', { _ride_id: booking.ride_id });
+        if (!driverId) throw new Error("Driver not found");
+        revieweeId = driverId;
+      }
 
       const { error } = await supabase.from("ratings").insert({
         ride_id: booking.ride_id,
         reviewer_id: user.id,
-        reviewee_id: driverId,
+        reviewee_id: revieweeId,
         rating,
         comment: comment.trim() || null,
       });
@@ -62,7 +70,7 @@ const RatingModal = ({ booking, isOpen, onClose }: RatingModalProps) => {
     <Dialog open={isOpen} onOpenChange={() => onClose()}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Rate Your Ride</DialogTitle>
+          <DialogTitle>Rate Your {isDriver ? "Rider" : "Ride"}</DialogTitle>
           <DialogDescription>How was your experience?</DialogDescription>
         </DialogHeader>
         <div className="space-y-4">

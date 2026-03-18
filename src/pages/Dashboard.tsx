@@ -1,12 +1,13 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { Search, MapPin, Clock, Home, Briefcase, Star, AlertTriangle, X } from "lucide-react";
+import { Search, MapPin, Clock, Home, Briefcase, Star, AlertTriangle, X, Navigation2, CalendarPlus } from "lucide-react";
 import { useProfile, useUpdateProfile } from "@/hooks/useProfile";
 import { LocationInput, LocationData } from "@/components/common";
 import { reverseGeocode } from "@/utils/geocoding";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import DashboardMap from "@/components/dashboard/DashboardMap";
 
 interface RecentDest {
   address: string;
@@ -22,9 +23,8 @@ const Dashboard = () => {
   const [originAddress, setOriginAddress] = useState("");
   const [showSearch, setShowSearch] = useState(false);
   const [recentDests, setRecentDests] = useState<RecentDest[]>([]);
-
-  // Save address dialog
   const [saveAddressType, setSaveAddressType] = useState<"home" | "work" | null>(null);
+  const [selectedDest, setSelectedDest] = useState<LocationData | null>(null);
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -63,19 +63,11 @@ const Dashboard = () => {
   };
 
   const handleLocationSelect = (location: LocationData) => {
-    const params = new URLSearchParams();
-    if (userLocation) {
-      params.set("origin_lat", String(userLocation.lat));
-      params.set("origin_lng", String(userLocation.lng));
-      params.set("origin_address", originAddress);
-    }
-    params.set("dest_lat", String(location.latitude));
-    params.set("dest_lng", String(location.longitude));
-    params.set("dest_address", location.address);
-    navigate(`/search-rides?${params.toString()}`);
+    setSelectedDest(location);
+    setShowSearch(false);
   };
 
-  const navigateToDestination = (dest: RecentDest) => {
+  const navigateToSearch = (dest: { address: string; lat: number; lng: number }) => {
     const params = new URLSearchParams();
     if (userLocation) {
       params.set("origin_lat", String(userLocation.lat));
@@ -88,12 +80,25 @@ const Dashboard = () => {
     navigate(`/search-rides?${params.toString()}`);
   };
 
+  const navigateToRequest = (dest: { address: string; lat: number; lng: number }) => {
+    const params = new URLSearchParams();
+    if (userLocation) {
+      params.set("origin_lat", String(userLocation.lat));
+      params.set("origin_lng", String(userLocation.lng));
+      params.set("origin_address", originAddress);
+    }
+    params.set("dest_lat", String(dest.lat));
+    params.set("dest_lng", String(dest.lng));
+    params.set("dest_address", dest.address);
+    navigate(`/request-ride?${params.toString()}`);
+  };
+
   const handleQuickDestClick = (type: "home" | "work") => {
     const addr = type === "home" ? profile?.home_address : profile?.work_address;
     const lat = type === "home" ? profile?.home_lat : profile?.work_lat;
     const lng = type === "home" ? profile?.home_lng : profile?.work_lng;
     if (addr && lat && lng) {
-      navigateToDestination({ address: addr, lat: Number(lat), lng: Number(lng) });
+      navigateToSearch({ address: addr, lat: Number(lat), lng: Number(lng) });
     } else {
       setSaveAddressType(type);
     }
@@ -133,9 +138,14 @@ const Dashboard = () => {
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 px-4 py-6">
-        {/* Current Location Indicator */}
-        <div className="flex items-center gap-2 mb-6">
+      <div className="flex-1 px-4 py-4 space-y-5">
+        {/* Map */}
+        {userLocation && (
+          <DashboardMap userLocation={userLocation} />
+        )}
+
+        {/* Current Location */}
+        <div className="flex items-center gap-2">
           <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
           <span className="text-sm text-muted-foreground truncate">
             {originAddress || "Detecting location..."}
@@ -143,7 +153,7 @@ const Dashboard = () => {
         </div>
 
         {/* Quick Destinations */}
-        <div className="grid grid-cols-3 gap-3 mb-8">
+        <div className="grid grid-cols-3 gap-3">
           <button
             className="flex flex-col items-center justify-center p-4 bg-card rounded-xl border border-border hover:border-primary/50 transition-colors"
             onClick={() => handleQuickDestClick("home")}
@@ -187,7 +197,7 @@ const Dashboard = () => {
             recentDests.map((dest, index) => (
               <button
                 key={index}
-                onClick={() => navigateToDestination(dest)}
+                onClick={() => navigateToSearch(dest)}
                 className="flex items-center gap-3 p-3 bg-card rounded-lg border border-border w-full text-left hover:border-primary/30 transition-colors"
               >
                 <div className="w-8 h-8 rounded-full bg-accent flex items-center justify-center flex-shrink-0">
@@ -213,20 +223,13 @@ const Dashboard = () => {
             ))
           )}
         </div>
-      </div>
 
-      {/* Hero Illustration with Animation */}
-      <div className="px-4 pb-24">
+        {/* Hero */}
         <div className="relative bg-gradient-to-br from-accent/50 to-primary/5 rounded-2xl p-6 overflow-hidden">
           <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full -translate-y-1/2 translate-x-1/2" />
-          <div className="absolute bottom-0 left-0 w-24 h-24 bg-secondary/10 rounded-full translate-y-1/2 -translate-x-1/2" />
-
-          {/* Animated road + car SVG */}
           <div className="relative z-10 mb-3 overflow-hidden h-12">
             <svg viewBox="0 0 300 40" className="w-full h-full" xmlns="http://www.w3.org/2000/svg">
-              {/* Dashed road */}
               <line x1="0" y1="30" x2="300" y2="30" stroke="hsl(var(--muted-foreground))" strokeWidth="2" strokeDasharray="8 6" opacity="0.3" />
-              {/* Car */}
               <g className="animate-[driveAcross_6s_ease-in-out_infinite]">
                 <rect x="0" y="16" width="28" height="12" rx="3" fill="hsl(var(--primary))" />
                 <rect x="4" y="10" width="18" height="8" rx="2" fill="hsl(var(--primary))" opacity="0.8" />
@@ -235,7 +238,6 @@ const Dashboard = () => {
               </g>
             </svg>
           </div>
-
           <div className="relative z-10">
             <h2 className="text-2xl font-bold text-primary italic mb-2">#goRaahi</h2>
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -257,15 +259,56 @@ const Dashboard = () => {
         <AlertTriangle className="h-6 w-6" />
       </button>
 
+      {/* Ride Options Dialog - appears when destination is selected */}
+      <Dialog open={!!selectedDest} onOpenChange={() => setSelectedDest(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Choose an option</DialogTitle>
+          </DialogHeader>
+          {selectedDest && (
+            <div className="space-y-3 pt-2">
+              <p className="text-sm text-muted-foreground truncate">
+                <MapPin className="inline h-3.5 w-3.5 mr-1" />
+                {selectedDest.address}
+              </p>
+              <Button
+                className="w-full min-h-[48px] justify-start gap-3"
+                onClick={() => {
+                  navigateToSearch({ address: selectedDest.address, lat: selectedDest.latitude, lng: selectedDest.longitude });
+                  setSelectedDest(null);
+                }}
+              >
+                <Navigation2 className="h-5 w-5" />
+                <div className="text-left">
+                  <p className="font-semibold">Request a Ride</p>
+                  <p className="text-xs opacity-80">Find a driver going your way</p>
+                </div>
+              </Button>
+              <Button
+                variant="outline"
+                className="w-full min-h-[48px] justify-start gap-3"
+                onClick={() => {
+                  navigateToRequest({ address: selectedDest.address, lat: selectedDest.latitude, lng: selectedDest.longitude });
+                  setSelectedDest(null);
+                }}
+              >
+                <CalendarPlus className="h-5 w-5" />
+                <div className="text-left">
+                  <p className="font-semibold">Schedule Future Ride</p>
+                  <p className="text-xs text-muted-foreground">Post a request for later</p>
+                </div>
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
       {/* Full Screen Search Modal */}
       {showSearch && (
         <div className="fixed inset-0 bg-background z-50 flex flex-col">
           <div className="p-4 border-b border-border">
             <div className="flex items-center gap-3">
-              <button
-                onClick={() => setShowSearch(false)}
-                className="p-2 -ml-2 hover:bg-muted rounded-full transition-colors"
-              >
+              <button onClick={() => setShowSearch(false)} className="p-2 -ml-2 hover:bg-muted rounded-full transition-colors">
                 <X className="h-5 w-5 text-muted-foreground" />
               </button>
               <div className="flex-1">
@@ -277,17 +320,13 @@ const Dashboard = () => {
                 />
               </div>
             </div>
-
             <div className="flex items-center gap-3 mt-3 px-2">
               <div className="w-2 h-2 rounded-full bg-primary" />
-              <span className="text-sm text-muted-foreground truncate">
-                From: {originAddress || "Current location"}
-              </span>
+              <span className="text-sm text-muted-foreground truncate">From: {originAddress || "Current location"}</span>
             </div>
           </div>
 
           <div className="flex-1 p-4 overflow-y-auto">
-            {/* Saved Addresses in modal */}
             {(homeAddr || workAddr) && (
               <div className="mb-4 space-y-2">
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Saved</p>
@@ -314,12 +353,11 @@ const Dashboard = () => {
               </div>
             )}
 
-            {/* Recent in modal */}
             {recentDests.length > 0 && (
               <div className="space-y-2">
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Recent</p>
                 {recentDests.map((dest, i) => (
-                  <button key={i} onClick={() => { setShowSearch(false); navigateToDestination(dest); }}
+                  <button key={i} onClick={() => { setShowSearch(false); navigateToSearch(dest); }}
                     className="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-accent/50 transition-colors text-left">
                     <Clock className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                     <div className="min-w-0">
@@ -332,9 +370,7 @@ const Dashboard = () => {
             )}
 
             {!homeAddr && !workAddr && recentDests.length === 0 && (
-              <p className="text-sm text-muted-foreground text-center mt-8">
-                Start typing to search for destinations
-              </p>
+              <p className="text-sm text-muted-foreground text-center mt-8">Start typing to search for destinations</p>
             )}
           </div>
         </div>
