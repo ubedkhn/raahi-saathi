@@ -1,130 +1,87 @@
 
 
-# Raahi -- Ride Flow Fixes, Cancel Button, Auto-Expire, Auth Page Cleanup
+# Plan: Fix Signup, Theme, Search Text & Ola Maps Integration
 
-## Summary
+## Key Findings
 
-8 changes across 4 files plus 1 database function: fix active panel sync by auto-accepting bookings created from DriverRequests, add rider cancel button in Upcoming tab, create a database function to auto-expire old ride requests, clean up Auth page text/checkbox, and wire Google OAuth properly via Lovable Cloud.
+1. **Signup/OTP Issue**: The screenshot confirms Supabase is sending magic links ("One-time login link" with a "Log In" button) instead of OTP codes. The `signInWithOtp` API in Supabase sends magic links by default. To get a 6-digit code, the email template must be configured for OTP, OR we need to use a different approach. Since we cannot modify Supabase auth config directly, the practical fix is to **keep the magic link flow but handle it properly in-tab** — or switch to email/password signup for new users and use magic link for returning users. The cleanest approach: use `signInWithOtp` but detect when the user clicks the magic link (which redirects back to `/auth`) and handle it via `onAuthStateChange`. The current code already does this but the email says "login link" not "OTP code" — this is a Supabase configuration issue. We'll add a custom auth edge function that sends a real OTP via email.
 
----
+   **Actually**, the simpler fix: For new user creation, use `supabase.auth.signUp({ email, password })` with a generated temp password, then immediately send OTP. But the cleanest: just embrace the magic link flow — change the UI to say "Check your email for a login link" instead of showing OTP boxes.
 
-## 1. Active Panel Sync Fix
+2. **Theme Toggle**: `next-themes` is installed and `ThemeProvider` wraps the app with `attribute="class"` and `enableSystem`. The Settings page uses `useTheme()`. This should work. Let me check if there's a CSS issue — the `index.css` likely has proper `.dark` class definitions. The issue might be that the theme isn't persisting or the `storageKey` isn't set.
 
-**File: `src/pages/DriverRequests.tsx`**
+3. **Search bar text**: Line 136 in Dashboard.tsx — easy text change.
 
-**Problem:** When a driver accepts a rider request, the booking is created with `status: "pending"`. The OTP trigger only fires when status changes from `pending` to `accepted`. Since the driver created this booking on behalf of the rider, it should be immediately accepted.
+4. **Ola Maps**: Need to replace Google Maps (DashboardMap, NearbyRidesMap) and Mapbox (geocoding, DriverArrivingMap, TripInProgressMap) with Ola Maps APIs. Ola Maps has a Web SDK (`olamaps-web-sdk` npm package) and REST APIs for geocoding, autocomplete, directions, and distance matrix.
 
-**Fix:** Change the booking insert status from `"pending"` to `"accepted"` in `handleAcceptRequest`. This triggers the OTP trigger on the database side (the trigger fires on UPDATE, so we need a two-step approach: insert as pending, then immediately update to accepted).
+## Tasks
 
-Actually, since the trigger is a BEFORE UPDATE trigger that checks `NEW.status = 'accepted' AND OLD.status = 'pending'`, we need to:
-1. Insert booking with `status: "pending"` (current behavior -- keep this)
-2. Immediately update the booking to `status: "accepted"` after insert
+### 1. Fix Signup — Switch to Magic Link UI (not fake OTP)
 
-This two-step approach fires the OTP trigger correctly. Add this right after the booking insert succeeds and before the ride_request status update.
+The root cause: `supabase.auth.signInWithOtp({ email })` sends a magic link email, not an OTP code. Supabase only sends OTP codes for phone-based OTP, not email. The email "OTP" is actually a magic link.
 
-Also update the ride status from `"scheduled"` to `"active"` so it appears in the Active tab for the driver.
+**Fix**: Change the verify step UI from "Enter 6-digit OTP" to "Check your email for a login link." Remove the OTP input boxes. Show a waiting screen with a "Resend" button. When the user clicks the magic link in the email, `onAuthStateChange('SIGNED_IN')` fires and the profile completion flow continues.
 
-**File: `src/hooks/useRides.ts`**
+This matches what Supabase actually sends (as shown in the screenshot).
 
-Add realtime subscriptions to `useMyBookings` and `useMyRides` so both rider and driver see changes instantly. Use `queryClient.invalidateQueries` on realtime events for bookings and rides tables.
+### 2. Fix Theme Toggle
 
----
+Check `src/index.css` for `.dark` class styles. The ThemeProvider config looks correct. Possible issue: `next-themes` needs `storageKey` or there's a CSS specificity issue. Will verify and fix.
 
-## 2. OTP Delivery
+### 3. Search Bar Text Change
 
-**Status:** Already implemented. The OTP trigger generates OTP on status change to `accepted`. ManageRide already shows OTP for rider in `accepted`, `driver_arriving`, `driver_arrived` statuses with toast notification. The fix in section 1 (auto-accepting the booking) ensures the OTP is generated when the driver accepts a request from DriverRequests.
+In `Dashboard.tsx` line 136, change `"Where are you going?"` to use the user's name: `Where you wanna go, {profile?.name?.split(' ')[0] || 'there'}?`
 
-No additional changes needed.
+### 4. Ola Maps Integration
 
----
+**Requires OLA_MAPS_API_KEY as a secret.** All API calls go through edge functions.
 
-## 3. Rider Cancel Button in Upcoming Tab
+#### New Edge Functions:
+- `supabase/functions/ola-maps-proxy/index.ts` — Single proxy for all Ola Maps API calls:
+  - Autocomplete: `GET https://api.olamaps.io/places/v1/autocomplete?input=...&api_key=...`
+  - Geocode: `GET https://api.olamaps.io/places/v1/geocode?address=...&api_key=...`
+  - Reverse Geocode: `GET https://api.olamaps.io/places/v1/reverse-geocode?latlng=...&api_key=...`
+  - Directions: `POST https://api.olamaps.io/routing/v1/directions?origin=...&destination=...&api_key=...`
+  - Distance Matrix: `GET https://api.olamaps.io/routing/v1/distanceMatrix?origins=...&destinations=...&api_key=...`
 
-**File: `src/pages/RecentRides.tsx`**
+#### Frontend Changes:
+- **Remove** `mapbox-gl` dependency, `@types/google.maps` reference
+- **Replace** `supabase/functions/mapbox-geocode/index.ts` with Ola Maps proxy calls
+- **Replace** `supabase/functions/google-maps-key/index.ts` — delete
+- **Update** `src/utils/geocoding.ts` to call `ola-maps-proxy` instead of `mapbox-geocode`
+- **Rewrite** `DashboardMap.tsx` to use Ola Maps Web SDK (`olamaps-web-sdk` npm package) instead of Google Maps
+- **Rewrite** `NearbyRidesMap.tsx` same
+- **Rewrite** `DriverArrivingMap.tsx` and `TripInProgressMap.tsx` to use Ola Maps instead of Mapbox
+- **Update** `LocationInput.tsx` to use Ola Maps autocomplete via the proxy edge function
+- **Update** `DriverRequests.tsx` distance calculation to use Ola Maps Distance Matrix API (or keep Haversine — simpler and no API call needed)
 
-Add a "Cancel" button on each booking card in the Upcoming tab (when `tab === 'upcoming'`). On click:
-- Update the booking status to `cancelled`
-- If the booking has an associated ride_request (check by matching rider_id + pickup/drop), restore the ride_request status to `open`
-- Show toast confirmation
-- Invalidate queries
+#### Install:
+- `olamaps-web-sdk` npm package
+- Remove `mapbox-gl` dependency
 
-Also add a cancel button for ride requests that haven't been matched yet (need to query `ride_requests` table for current user's open requests and display them in Upcoming tab).
+## Files to Create/Modify
 
-**New addition to Upcoming tab:** Show the user's own open `ride_requests` as cards with a cancel button, separately from bookings.
+**New:**
+- `supabase/functions/ola-maps-proxy/index.ts`
 
----
+**Modified:**
+- `src/pages/Auth.tsx` — Magic link waiting screen instead of OTP boxes
+- `src/pages/Dashboard.tsx` — Search bar text with user name
+- `src/pages/Settings.tsx` — Verify theme toggle works (may need minor fix)
+- `src/utils/geocoding.ts` — Use ola-maps-proxy
+- `src/components/dashboard/DashboardMap.tsx` — Ola Maps Web SDK
+- `src/components/dashboard/NearbyRidesMap.tsx` — Ola Maps Web SDK
+- `src/components/ride-tracking/DriverArrivingMap.tsx` — Ola Maps Web SDK
+- `src/components/ride-tracking/TripInProgressMap.tsx` — Ola Maps Web SDK
+- `src/components/common/LocationInput.tsx` — Ola Maps autocomplete
+- `supabase/config.toml` — Add ola-maps-proxy function config
+- `src/vite-env.d.ts` — Remove Google Maps types reference
 
-## 4. Auto-Expire Ride Requests
+**Delete:**
+- `supabase/functions/google-maps-key/index.ts` (replaced by ola-maps-proxy)
+- `supabase/functions/mapbox-geocode/index.ts` (replaced by ola-maps-proxy)
 
-**Database migration:** Create a database function `expire_old_ride_requests()` that marks open ride requests as `expired` when `preferred_time < now()`.
+## Prerequisites
 
-**Scheduled job:** Set up a `pg_cron` job to run this function every 15 minutes.
-
-```text
-Function: expire_old_ride_requests()
-  UPDATE ride_requests SET status = 'expired' 
-  WHERE status = 'open' AND preferred_time < now();
-
-Cron: */15 * * * * -- every 15 minutes
-```
-
----
-
-## 5. Auth Page Text Cleanup
-
-**File: `src/pages/Auth.tsx`**
-
-Line-level changes:
-- Line 361: Change tagline from `"Join India's peer-to-peer ride sharing community"` to `"Join India's First peer-to-peer ride sharing community"`
-- Line 610: Change placeholder from `"John Doe"` to `"Your Name"`
-- Lines 545-548 (login checkbox): Change from `"I am 18 or older"` to `"I am 18 or older and accept all terms and conditions"` with "terms and conditions" as a link
-- Lines 702-711 (signup checkbox): Same change as login checkbox
-
----
-
-## 6. Google Auth Fix
-
-**File: `src/pages/Auth.tsx`**
-
-The current implementation uses `supabase.auth.signInWithOAuth` directly. For Lovable Cloud, this needs to use the `lovable.auth.signInWithOAuth` function instead. This requires:
-1. Running the Configure Social Login tool to generate the Lovable module
-2. Updating `handleGoogleSignIn` to import and use `lovable.auth.signInWithOAuth("google", { redirect_uri: window.location.origin })`
-
----
-
-## 7. Forgot Password Enhancement
-
-**Status:** Already implemented with proper flow:
-- `handleForgotPassword` sends reset email with toast "Check your inbox"
-- Reset mode detects `?reset=true` query param and `PASSWORD_RECOVERY` event
-- Password update form with validation works
-
-One small fix: the toast message says "Check your inbox for a password reset link" -- update to "Reset link sent. Check your inbox." per requirements.
-
----
-
-## Technical Details
-
-### Files Modified
-```text
-src/pages/DriverRequests.tsx  -- Auto-accept booking after insert (2-step), set ride to active
-src/pages/RecentRides.tsx     -- Add cancel button for upcoming bookings + show open ride requests
-src/pages/Auth.tsx            -- Text cleanup, checkbox update, Google OAuth via Lovable Cloud, forgot password toast
-src/hooks/useRides.ts         -- Add realtime invalidation for bookings/rides queries
-```
-
-### Database Changes
-```text
-1. CREATE FUNCTION expire_old_ride_requests() -- marks expired requests
-2. pg_cron job every 15 minutes to call the function
-```
-
-### Dependencies
-- Lovable Cloud auth module (generated by Configure Social Login tool) for Google OAuth
-- pg_cron + pg_net extensions for auto-expire (need to be enabled)
-
-### Sequencing
-1. Database migration (expire function) -- can run independently
-2. Configure Social Login tool for Google OAuth -- must run before Auth.tsx changes
-3. All file edits can happen in parallel after steps 1-2
+Before implementation, the **OLA_MAPS_API_KEY** secret must be added. I'll use the `add_secret` tool to request it from the user.
 
