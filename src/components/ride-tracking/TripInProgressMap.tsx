@@ -154,7 +154,7 @@ const TripInProgressMap = ({ booking, isDriver = false, onEndRide }: TripInProgr
 
       {/* Live Tracking Indicator */}
       <div className="absolute bottom-4 right-4">
-        <div className="bg-green-500 text-white px-3 py-2 rounded-full shadow-lg flex items-center gap-2 text-sm font-medium">
+        <div className="bg-primary text-primary-foreground px-3 py-2 rounded-full shadow-lg flex items-center gap-2 text-sm font-medium">
           <div className="h-2 w-2 rounded-full bg-white animate-pulse" />
           Live Tracking
         </div>
