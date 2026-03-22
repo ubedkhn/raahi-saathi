@@ -1,11 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
-import mapboxgl from 'mapbox-gl';
-import 'mapbox-gl/dist/mapbox-gl.css';
-import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Phone, MessageSquare, Navigation, Clock } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
+import { useEffect, useRef, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Phone, MessageSquare, Navigation, Clock } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 
 interface Booking {
   pickup_lat: number;
@@ -34,135 +32,90 @@ interface DriverArrivingMapProps {
 
 const DriverArrivingMap = ({ booking }: DriverArrivingMapProps) => {
   const mapContainer = useRef<HTMLDivElement>(null);
-  const map = useRef<mapboxgl.Map | null>(null);
-  const driverMarker = useRef<mapboxgl.Marker | null>(null);
-  const pickupMarker = useRef<mapboxgl.Marker | null>(null);
-  const [mapboxToken, setMapboxToken] = useState('');
-  const { toast } = useToast();
+  const mapRef = useRef<any>(null);
+  const driverMarkerRef = useRef<any>(null);
+  const [mapConfig, setMapConfig] = useState<{ styleUrl: string; apiKey: string } | null>(null);
 
   useEffect(() => {
-    // For demo, using a placeholder - user should add their Mapbox token
-    const token = 'pk.eyJ1IjoibG92YWJsZS1kZW1vIiwiYSI6ImNtNTBxeGRsZzBjbHoya3F1Zmh5ZzZ2cDkifQ.demo';
-    setMapboxToken(token);
+    const fetchConfig = async () => {
+      try {
+        const { data, error } = await supabase.functions.invoke("ola-maps-proxy", {
+          body: { action: "map-style" },
+        });
+        if (error) throw error;
+        setMapConfig(data);
+      } catch (e) {
+        console.error("Failed to load map config:", e);
+      }
+    };
+    fetchConfig();
   }, []);
 
   useEffect(() => {
-    if (!mapContainer.current || !mapboxToken || map.current) return;
+    if (!mapContainer.current || !mapConfig || mapRef.current) return;
 
-    mapboxgl.accessToken = mapboxToken;
+    const initMap = async () => {
+      const maplibregl = await import("maplibre-gl");
+      await import("maplibre-gl/dist/maplibre-gl.css");
 
-    map.current = new mapboxgl.Map({
-      container: mapContainer.current,
-      style: 'mapbox://styles/mapbox/streets-v12',
-      center: [booking.pickup_lng, booking.pickup_lat],
-      zoom: 14,
-    });
+      const map = new maplibregl.default.Map({
+        container: mapContainer.current!,
+        style: `${mapConfig.styleUrl}?api_key=${mapConfig.apiKey}`,
+        center: [booking.pickup_lng, booking.pickup_lat],
+        zoom: 14,
+        attributionControl: false,
+      });
 
-    map.current.addControl(new mapboxgl.NavigationControl(), 'top-right');
+      mapRef.current = map;
 
-    // Add pickup location marker
-    pickupMarker.current = new mapboxgl.Marker({ color: '#00897B' })
-      .setLngLat([booking.pickup_lng, booking.pickup_lat])
-      .setPopup(new mapboxgl.Popup().setHTML(`<p><strong>Pickup Location</strong><br/>${booking.pickup_address}</p>`))
-      .addTo(map.current);
+      map.on("load", () => {
+        // Pickup marker
+        const pickupEl = document.createElement("div");
+        pickupEl.style.cssText = "width:16px;height:16px;border-radius:50%;background:#00897B;border:3px solid white;box-shadow:0 2px 4px rgba(0,0,0,0.3)";
+        new maplibregl.default.Marker({ element: pickupEl })
+          .setLngLat([booking.pickup_lng, booking.pickup_lat])
+          .addTo(map);
 
-    // Add driver marker if location available
-    if (booking.driver_current_lat && booking.driver_current_lng) {
-      updateDriverLocation(booking.driver_current_lat, booking.driver_current_lng);
-    }
+        // Driver marker if available
+        if (booking.driver_current_lat && booking.driver_current_lng) {
+          updateDriverLocation(booking.driver_current_lat, booking.driver_current_lng, maplibregl.default, map);
+        }
+      });
+    };
+
+    initMap();
 
     return () => {
-      map.current?.remove();
-      map.current = null;
+      mapRef.current?.remove();
+      mapRef.current = null;
     };
-  }, [mapboxToken]);
+  }, [mapConfig]);
 
   useEffect(() => {
-    if (booking.driver_current_lat && booking.driver_current_lng) {
-      updateDriverLocation(booking.driver_current_lat, booking.driver_current_lng);
+    if (booking.driver_current_lat && booking.driver_current_lng && mapRef.current) {
+      import("maplibre-gl").then((maplibregl) => {
+        updateDriverLocation(booking.driver_current_lat!, booking.driver_current_lng!, maplibregl.default, mapRef.current);
+      });
     }
   }, [booking.driver_current_lat, booking.driver_current_lng]);
 
-  const updateDriverLocation = (lat: number, lng: number) => {
-    if (!map.current) return;
-
-    if (driverMarker.current) {
-      driverMarker.current.setLngLat([lng, lat]);
+  const updateDriverLocation = (lat: number, lng: number, maplibregl: any, map: any) => {
+    if (driverMarkerRef.current) {
+      driverMarkerRef.current.setLngLat([lng, lat]);
     } else {
-      // Create custom driver marker
-      const el = document.createElement('div');
-      el.className = 'driver-marker';
-      el.style.width = '40px';
-      el.style.height = '40px';
-      el.style.backgroundImage = 'url(/placeholder.svg)';
-      el.style.backgroundSize = 'cover';
-      el.style.borderRadius = '50%';
-      el.style.border = '3px solid white';
-      el.style.boxShadow = '0 2px 4px rgba(0,0,0,0.3)';
-
-      driverMarker.current = new mapboxgl.Marker({ element: el })
+      const el = document.createElement("div");
+      el.style.cssText = "width:40px;height:40px;background:#3b82f6;border-radius:50%;border:3px solid white;box-shadow:0 2px 4px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;font-size:20px";
+      el.textContent = "🚗";
+      driverMarkerRef.current = new maplibregl.Marker({ element: el })
         .setLngLat([lng, lat])
-        .setPopup(new mapboxgl.Popup().setHTML(`<p><strong>Driver</strong><br/>${booking.rides.profiles.name}</p>`))
-        .addTo(map.current);
+        .addTo(map);
     }
 
-    // Fit map to show both markers
-    const bounds = new mapboxgl.LngLatBounds();
+    // Fit bounds
+    const bounds = new maplibregl.LngLatBounds();
     bounds.extend([booking.pickup_lng, booking.pickup_lat]);
     bounds.extend([lng, lat]);
-    map.current.fitBounds(bounds, { padding: 100 });
-
-    // Draw route between driver and pickup
-    drawRoute([lng, lat], [booking.pickup_lng, booking.pickup_lat]);
-  };
-
-  const drawRoute = async (from: [number, number], to: [number, number]) => {
-    if (!map.current) return;
-
-    try {
-      const response = await fetch(
-        `https://api.mapbox.com/directions/v5/mapbox/driving/${from[0]},${from[1]};${to[0]},${to[1]}?geometries=geojson&access_token=${mapboxToken}`
-      );
-      const data = await response.json();
-
-      if (data.routes && data.routes[0]) {
-        const route = data.routes[0].geometry;
-
-        if (map.current.getSource('route')) {
-          (map.current.getSource('route') as mapboxgl.GeoJSONSource).setData({
-            type: 'Feature',
-            properties: {},
-            geometry: route,
-          });
-        } else {
-          map.current.addSource('route', {
-            type: 'geojson',
-            data: {
-              type: 'Feature',
-              properties: {},
-              geometry: route,
-            },
-          });
-
-          map.current.addLayer({
-            id: 'route',
-            type: 'line',
-            source: 'route',
-            layout: {
-              'line-join': 'round',
-              'line-cap': 'round',
-            },
-            paint: {
-              'line-color': '#00897B',
-              'line-width': 4,
-              'line-opacity': 0.8,
-            },
-          });
-        }
-      }
-    } catch (error) {
-      console.error('Error drawing route:', error);
-    }
+    map.fitBounds(bounds, { padding: 100 });
   };
 
   const handleCall = () => {
@@ -176,7 +129,7 @@ const DriverArrivingMap = ({ booking }: DriverArrivingMapProps) => {
   return (
     <div className="relative w-full h-full">
       <div ref={mapContainer} className="absolute inset-0" />
-      
+
       {/* Driver Info Card */}
       <Card className="absolute top-4 left-4 right-4 p-4 shadow-lg bg-card/95 backdrop-blur">
         <div className="flex items-center gap-4">
@@ -186,7 +139,7 @@ const DriverArrivingMap = ({ booking }: DriverArrivingMapProps) => {
               {booking.rides.profiles.name.charAt(0)}
             </AvatarFallback>
           </Avatar>
-          
+
           <div className="flex-1">
             <h3 className="font-semibold text-lg">{booking.rides.profiles.name}</h3>
             <p className="text-sm text-muted-foreground">

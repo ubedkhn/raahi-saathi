@@ -8,18 +8,26 @@ export interface LocationResult {
 }
 
 /**
- * Forward geocode: search for locations via Mapbox (proxied through edge function)
+ * Forward geocode: search for locations via Ola Maps autocomplete
  */
 export async function searchLocation(query: string): Promise<LocationResult[]> {
   if (!query || query.trim().length < 3) return [];
 
   try {
-    const { data, error } = await supabase.functions.invoke("mapbox-geocode", {
-      body: { type: "forward", query: query.trim() },
+    const { data, error } = await supabase.functions.invoke("ola-maps-proxy", {
+      body: { action: "autocomplete", input: query.trim() },
     });
 
     if (error) throw error;
-    return Array.isArray(data) ? data : [];
+
+    // Ola Maps autocomplete returns { predictions: [...] }
+    const predictions = data?.predictions || [];
+    return predictions.map((p: any) => ({
+      address: p.structured_formatting?.main_text || p.description || "",
+      latitude: p.geometry?.location?.lat || 0,
+      longitude: p.geometry?.location?.lng || 0,
+      displayName: p.description || p.structured_formatting?.main_text || "",
+    }));
   } catch (error) {
     console.error("Geocoding error:", error);
     return [];
@@ -27,16 +35,18 @@ export async function searchLocation(query: string): Promise<LocationResult[]> {
 }
 
 /**
- * Reverse geocode: lat/lng → address via Mapbox
+ * Reverse geocode: lat/lng → address via Ola Maps
  */
 export async function reverseGeocode(lat: number, lng: number): Promise<string | null> {
   try {
-    const { data, error } = await supabase.functions.invoke("mapbox-geocode", {
-      body: { type: "reverse", lat, lng },
+    const { data, error } = await supabase.functions.invoke("ola-maps-proxy", {
+      body: { action: "reverse-geocode", lat, lng },
     });
 
     if (error) throw error;
-    return data?.[0]?.address || null;
+
+    const results = data?.results || [];
+    return results[0]?.formatted_address || results[0]?.address_components?.map((c: any) => c.long_name).join(", ") || null;
   } catch (error) {
     console.error("Reverse geocoding error:", error);
     return null;
