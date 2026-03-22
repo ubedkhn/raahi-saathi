@@ -8,3 +8,6 @@ verify_jwt = false
 
 [functions.validate-ride]
 verify_jwt = false
+
+[functions.ola-maps-proxy]
+verify_jwt = false

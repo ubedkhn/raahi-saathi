@@ -19,130 +19,95 @@ interface NearbyRidesMapProps {
   nearbyRides: NearbyRide[];
 }
 
-declare global {
-  interface Window {
-    google: any;
-    __googleMapsLoading?: boolean;
-    __googleMapsLoaded?: boolean;
-  }
-}
-
-const loadGoogleMapsScript = async (): Promise<void> => {
-  if (window.__googleMapsLoaded) return;
-
-  if (!window.__googleMapsLoading) {
-    window.__googleMapsLoading = true;
-    // Fetch key from edge function
-    const { data, error } = await supabase.functions.invoke("google-maps-key");
-    if (error || !data?.key) throw new Error("No Maps key");
-
-    await new Promise<void>((resolve, reject) => {
-      const script = document.createElement("script");
-      script.id = "google-maps-script";
-      script.src = `https://maps.googleapis.com/maps/api/js?key=${data.key}`;
-      script.async = true;
-      script.defer = true;
-      script.onload = () => {
-        window.__googleMapsLoaded = true;
-        resolve();
-      };
-      script.onerror = () => reject(new Error("Failed to load Google Maps"));
-      document.head.appendChild(script);
-    });
-  } else {
-    // Wait for ongoing load
-    await new Promise<void>((resolve) => {
-      const interval = setInterval(() => {
-        if (window.__googleMapsLoaded) { clearInterval(interval); resolve(); }
-      }, 100);
-    });
-  }
-};
-
-const buildMap = (
-  container: HTMLElement,
-  userLocation: { lat: number; lng: number },
-  nearbyRides: NearbyRide[]
-) => {
-  const G = window.google.maps;
-  const map = new G.Map(container, {
-    center: userLocation,
-    zoom: 15,
-    disableDefaultUI: true,
-    gestureHandling: "greedy",
-    styles: [
-      { featureType: "poi", stylers: [{ visibility: "off" }] },
-      { featureType: "transit", stylers: [{ visibility: "off" }] },
-    ],
-  });
-
-  // User marker
-  new G.Marker({
-    position: userLocation,
-    map,
-    icon: {
-      path: G.SymbolPath.CIRCLE,
-      scale: 10,
-      fillColor: "#4285F4",
-      fillOpacity: 1,
-      strokeColor: "#ffffff",
-      strokeWeight: 3,
-    },
-    title: "You are here",
-    zIndex: 10,
-  });
-
-  // Nearby ride markers
-  nearbyRides.forEach((ride, i) => {
-    const marker = new G.Marker({
-      position: { lat: Number(ride.origin_lat), lng: Number(ride.origin_lng) },
-      map,
-      label: { text: "🚗", fontSize: "18px" },
-      title: ride.origin_address,
-    });
-
-    if (i < 3) {
-      marker.setAnimation(G.Animation.BOUNCE);
-      setTimeout(() => marker.setAnimation(null), 1500);
-    }
-
-    const info = new G.InfoWindow({
-      content: `<div style="font-size:12px;max-width:180px"><strong>${ride.origin_address}</strong><br>→ ${ride.destination_address}</div>`,
-    });
-    marker.addListener("click", () => info.open(map, marker));
-  });
-
-  return map;
-};
-
 const NearbyRidesMap = ({ userLocation, nearbyRides }: NearbyRidesMapProps) => {
   const mapRef = useRef<HTMLDivElement>(null);
   const expandedMapRef = useRef<HTMLDivElement>(null);
   const [expanded, setExpanded] = useState(false);
   const [mapError, setMapError] = useState(false);
-  const [initialized, setInitialized] = useState(false);
+  const [mapConfig, setMapConfig] = useState<{ styleUrl: string; apiKey: string } | null>(null);
+  const mapInstanceRef = useRef<any>(null);
+  const expandedMapInstanceRef = useRef<any>(null);
 
-  const initMap = useCallback(async (container: HTMLDivElement) => {
+  useEffect(() => {
+    const fetchConfig = async () => {
+      try {
+        const { data, error } = await supabase.functions.invoke("ola-maps-proxy", {
+          body: { action: "map-style" },
+        });
+        if (error) throw error;
+        setMapConfig(data);
+      } catch {
+        setMapError(true);
+      }
+    };
+    fetchConfig();
+  }, []);
+
+  const buildMap = useCallback(async (container: HTMLDivElement) => {
+    if (!mapConfig) return null;
     try {
-      await loadGoogleMapsScript();
-      buildMap(container, userLocation, nearbyRides);
-      setInitialized(true);
+      const maplibregl = await import("maplibre-gl");
+      await import("maplibre-gl/dist/maplibre-gl.css");
+
+      const map = new maplibregl.default.Map({
+        container,
+        style: `${mapConfig.styleUrl}?api_key=${mapConfig.apiKey}`,
+        center: [userLocation.lng, userLocation.lat],
+        zoom: 15,
+        attributionControl: false,
+      });
+
+      map.on("load", () => {
+        // User marker
+        const el = document.createElement("div");
+        el.style.cssText = "width:16px;height:16px;border-radius:50%;background:#4285F4;border:3px solid white;box-shadow:0 2px 4px rgba(0,0,0,0.3)";
+        new maplibregl.default.Marker({ element: el })
+          .setLngLat([userLocation.lng, userLocation.lat])
+          .addTo(map);
+
+        // Ride markers
+        nearbyRides.forEach((ride) => {
+          const rideEl = document.createElement("div");
+          rideEl.style.cssText = "font-size:18px;cursor:pointer";
+          rideEl.textContent = "🚗";
+
+          new maplibregl.default.Marker({ element: rideEl })
+            .setLngLat([Number(ride.origin_lng), Number(ride.origin_lat)])
+            .setPopup(
+              new maplibregl.default.Popup({ offset: 25 }).setHTML(
+                `<div style="font-size:12px;max-width:180px"><strong>${ride.origin_address}</strong><br>→ ${ride.destination_address}</div>`
+              )
+            )
+            .addTo(map);
+        });
+      });
+
+      return map;
     } catch {
       setMapError(true);
+      return null;
     }
-  }, [userLocation, nearbyRides]);
+  }, [mapConfig, userLocation, nearbyRides]);
 
   useEffect(() => {
-    if (mapRef.current && !initialized) {
-      initMap(mapRef.current);
+    if (mapRef.current && mapConfig && !mapInstanceRef.current) {
+      buildMap(mapRef.current).then((m) => { mapInstanceRef.current = m; });
     }
-  }, [initMap, initialized]);
+    return () => {
+      mapInstanceRef.current?.remove();
+      mapInstanceRef.current = null;
+    };
+  }, [buildMap, mapConfig]);
 
   useEffect(() => {
-    if (expanded && expandedMapRef.current) {
-      initMap(expandedMapRef.current);
+    if (expanded && expandedMapRef.current && mapConfig) {
+      buildMap(expandedMapRef.current).then((m) => { expandedMapInstanceRef.current = m; });
     }
-  }, [expanded, initMap]);
+    return () => {
+      expandedMapInstanceRef.current?.remove();
+      expandedMapInstanceRef.current = null;
+    };
+  }, [expanded, buildMap, mapConfig]);
 
   if (mapError) return null;
 

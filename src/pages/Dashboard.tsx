@@ -133,7 +133,7 @@ const Dashboard = () => {
           className="w-full flex items-center gap-3 px-4 py-3 bg-background rounded-full border border-border shadow-sm hover:shadow-md transition-shadow"
         >
           <Search className="h-5 w-5 text-muted-foreground" />
-          <span className="text-foreground font-medium">Where are you going?</span>
+          <span className="text-foreground font-medium">Where you wanna go, {profile?.name?.split(" ")[0] || "there"}?</span>
         </button>
       </div>
 
