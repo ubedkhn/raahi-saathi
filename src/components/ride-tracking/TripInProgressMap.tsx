@@ -117,7 +117,7 @@ const TripInProgressMap = ({ booking, isDriver = false, onEndRide }: TripInProgr
       <Card className="absolute top-4 left-4 right-4 p-4 shadow-lg bg-card/95 backdrop-blur">
         <div className="flex items-center justify-between mb-3">
           <div>
-            <Badge className="bg-green-500 text-white mb-2">Trip In Progress</Badge>
+            <Badge className="bg-primary text-primary-foreground mb-2">Trip In Progress</Badge>
             <h3 className="font-semibold">
               {booking.rides.profiles.name} • {booking.rides.vehicles.brand}{" "}
               {booking.rides.vehicles.model}
