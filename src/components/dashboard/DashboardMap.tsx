@@ -20,8 +20,7 @@ const generateNearbyDrivers = (center: { lat: number; lng: number }) => {
 const DashboardMap = ({ userLocation, onMapReady }: DashboardMapProps) => {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
-  const markersRef = useRef<any[]>([]);
-  const [error, setError] = useState(false);
+  const animateIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [mapConfig, setMapConfig] = useState<{ styleUrl: string; apiKey: string } | null>(null);
 
   // Fetch Ola Maps config
