@@ -36,6 +36,9 @@ import EmergencyContacts from "./pages/EmergencyContacts";
 import DriverRequests from "./pages/DriverRequests";
 import Notifications from "./pages/Notifications";
 import Terms from "./pages/Terms";
+import BookingConfirmation from "./pages/BookingConfirmation";
+import ReferralHub from "./pages/ReferralHub";
+import WomenOnlyMode from "./pages/WomenOnlyMode";
 
 // Auth-aware root route component
 const RootRoute = () => {
@@ -104,6 +107,9 @@ const App = () => (
               <Route path="/emergency-contacts" element={<EmergencyContacts />} />
               <Route path="/driver-requests" element={<DriverRequests />} />
               <Route path="/notifications" element={<Notifications />} />
+              <Route path="/booking-confirmation" element={<BookingConfirmation />} />
+              <Route path="/referral" element={<ReferralHub />} />
+              <Route path="/women-only" element={<WomenOnlyMode />} />
             </Route>
             
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
