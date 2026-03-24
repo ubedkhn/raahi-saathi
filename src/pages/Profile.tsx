@@ -297,6 +297,29 @@ const Profile = () => {
 
       <Separator />
 
+      {/* Quick Actions */}
+      <div>
+        <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1 mb-3">Quick Actions</h2>
+        <div className="space-y-1">
+          <button onClick={() => navigate('/women-only')} className="flex items-center justify-between w-full py-3 px-1 hover:bg-accent/50 rounded-lg transition-colors">
+            <div className="flex items-center gap-3">
+              <Shield className="h-5 w-5 text-primary" />
+              <span className="text-sm">Women-Only Mode</span>
+            </div>
+            <ChevronRight className="h-4 w-4 text-muted-foreground" />
+          </button>
+          <button onClick={() => navigate('/referral')} className="flex items-center justify-between w-full py-3 px-1 hover:bg-accent/50 rounded-lg transition-colors">
+            <div className="flex items-center gap-3">
+              <Star className="h-5 w-5 text-secondary" />
+              <span className="text-sm">Invite & Earn</span>
+            </div>
+            <ChevronRight className="h-4 w-4 text-muted-foreground" />
+          </button>
+        </div>
+      </div>
+
+      <Separator />
+
       {/* Help & Support */}
       <div>
         <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1 mb-3">Help & Support</h2>
