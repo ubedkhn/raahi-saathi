@@ -22,6 +22,11 @@ const Auth = () => {
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState("");
   const [emailError, setEmailError] = useState("");
+  const [password, setPassword] = useState("");
+  const [passwordError, setPasswordError] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [authMode, setAuthMode] = useState<"signin" | "signup">("signin");
+  const [signupConfirmation, setSignupConfirmation] = useState(false);
 
   // OTP
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
@@ -107,24 +112,86 @@ const Auth = () => {
     }
   }, [step]);
 
-  const handleSendOtp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setEmailError("");
+  const validateEmail = () => {
     const result = z.string().trim().email("Enter a valid email").safeParse(email);
     if (!result.success) {
       setEmailError(result.error.errors[0].message);
+      return null;
+    }
+    return result.data;
+  };
+
+  const handlePasswordAuth = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setEmailError("");
+    setPasswordError("");
+    const validEmail = validateEmail();
+    if (!validEmail) return;
+
+    if (authMode === "signup") {
+      const pwSchema = z.string()
+        .min(8, "Min 8 characters")
+        .regex(/[A-Z]/, "Need uppercase")
+        .regex(/[a-z]/, "Need lowercase")
+        .regex(/[0-9]/, "Need number");
+      const pwResult = pwSchema.safeParse(password);
+      if (!pwResult.success) {
+        setPasswordError(pwResult.error.errors[0].message);
+        return;
+      }
+    } else if (!password) {
+      setPasswordError("Enter your password");
       return;
     }
+
     setLoading(true);
     try {
-      const { error } = await supabase.auth.signInWithOtp({
-        email: result.data,
-      });
+      if (authMode === "signup") {
+        const { data, error } = await supabase.auth.signUp({
+          email: validEmail,
+          password,
+          options: { emailRedirectTo: `${window.location.origin}/dashboard` },
+        });
+        if (error) throw error;
+        if (data.session) {
+          // Auto-confirmed - SIGNED_IN handler takes over
+        } else {
+          setSignupConfirmation(true);
+        }
+      } else {
+        const { error } = await supabase.auth.signInWithPassword({
+          email: validEmail,
+          password,
+        });
+        if (error) throw error;
+        // SIGNED_IN handler takes over
+      }
+    } catch (error: any) {
+      const msg = error?.message || "Authentication failed";
+      if (msg.toLowerCase().includes("invalid login")) {
+        setPasswordError("Incorrect email or password");
+      } else if (msg.toLowerCase().includes("already registered") || msg.toLowerCase().includes("already exists")) {
+        setEmailError("Email already registered. Try signing in.");
+      } else {
+        toast({ title: "Error", description: msg, variant: "destructive" });
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSendMagicLink = async () => {
+    setEmailError("");
+    const validEmail = validateEmail();
+    if (!validEmail) return;
+    setLoading(true);
+    try {
+      const { error } = await supabase.auth.signInWithOtp({ email: validEmail });
       if (error) throw error;
       setStep("verify-otp");
       setResendTimer(30);
     } catch (error: any) {
-      toast({ title: "Error", description: error.message || "Failed to send OTP", variant: "destructive" });
+      toast({ title: "Error", description: error.message || "Failed to send link", variant: "destructive" });
     } finally {
       setLoading(false);
     }
@@ -353,14 +420,32 @@ const Auth = () => {
       <div className="flex-1 flex flex-col items-center justify-center p-6">
         <div className="w-full max-w-md">
           {/* Step: Email Entry */}
-          {step === "email" && !showForgotPassword && (
-            <div className="space-y-8">
+          {step === "email" && !showForgotPassword && !signupConfirmation && (
+            <div className="space-y-6">
               <div className="text-center space-y-2">
                 <h1 className="text-4xl font-bold text-primary">Raahi</h1>
                 <p className="text-muted-foreground">India's peer-to-peer ride sharing</p>
               </div>
 
-              <form onSubmit={handleSendOtp} className="space-y-4">
+              {/* Sign in / Sign up tabs */}
+              <div className="grid grid-cols-2 gap-1 p-1 bg-muted rounded-lg">
+                <button
+                  type="button"
+                  onClick={() => { setAuthMode("signin"); setPasswordError(""); }}
+                  className={`py-2 text-sm font-medium rounded-md transition-colors ${authMode === "signin" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground"}`}
+                >
+                  Sign In
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setAuthMode("signup"); setPasswordError(""); }}
+                  className={`py-2 text-sm font-medium rounded-md transition-colors ${authMode === "signup" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground"}`}
+                >
+                  Sign Up
+                </button>
+              </div>
+
+              <form onSubmit={handlePasswordAuth} className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="email" className="text-base">Email address</Label>
                   <Input
@@ -375,8 +460,37 @@ const Auth = () => {
                   />
                   {emailError && <p className="text-sm text-destructive">{emailError}</p>}
                 </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="password" className="text-base">Password</Label>
+                  <div className="relative">
+                    <Input
+                      id="password"
+                      type={showPassword ? "text" : "password"}
+                      placeholder={authMode === "signup" ? "Min 8 chars, upper, lower, number" : "Enter your password"}
+                      value={password}
+                      onChange={(e) => { setPassword(e.target.value); setPasswordError(""); }}
+                      className={`min-h-[48px] text-base pr-10 ${passwordError ? "border-destructive" : ""}`}
+                      autoComplete={authMode === "signup" ? "new-password" : "current-password"}
+                    />
+                    <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                  {passwordError && <p className="text-sm text-destructive">{passwordError}</p>}
+                  {authMode === "signin" && (
+                    <button
+                      type="button"
+                      onClick={() => setShowForgotPassword(true)}
+                      className="text-sm text-primary hover:underline"
+                    >
+                      Forgot password?
+                    </button>
+                  )}
+                </div>
+
                 <Button type="submit" className="w-full min-h-[48px] text-base font-semibold" disabled={loading}>
-                  {loading ? "Sending..." : "Continue"}
+                  {loading ? "Please wait..." : authMode === "signup" ? "Create Account" : "Sign In"}
                 </Button>
               </form>
 
@@ -385,18 +499,15 @@ const Auth = () => {
                 <div className="relative flex justify-center text-xs uppercase"><span className="bg-background px-2 text-muted-foreground">or</span></div>
               </div>
 
-              <Button variant="outline" className="w-full min-h-[48px] text-base" onClick={handleGoogleSignIn} disabled={loading}>
-                <svg className="mr-2 h-5 w-5" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
-                Continue with Google
-              </Button>
-
-              <button
-                type="button"
-                onClick={() => setShowForgotPassword(true)}
-                className="w-full text-center text-sm text-muted-foreground hover:text-foreground"
-              >
-                Forgot password?
-              </button>
+              <div className="space-y-2">
+                <Button variant="outline" className="w-full min-h-[48px] text-base" onClick={handleGoogleSignIn} disabled={loading}>
+                  <svg className="mr-2 h-5 w-5" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
+                  Continue with Google
+                </Button>
+                <Button variant="ghost" className="w-full min-h-[44px] text-sm" onClick={handleSendMagicLink} disabled={loading}>
+                  <Mail className="mr-2 h-4 w-4" /> Email me a magic link instead
+                </Button>
+              </div>
 
               <p className="text-xs text-center text-muted-foreground">
                 By continuing, you agree to our{" "}
@@ -406,7 +517,7 @@ const Auth = () => {
           )}
 
           {/* Forgot password */}
-          {step === "email" && showForgotPassword && (
+          {step === "email" && showForgotPassword && !signupConfirmation && (
             <div className="space-y-6">
               <button type="button" onClick={() => setShowForgotPassword(false)} className="flex items-center text-sm text-muted-foreground hover:text-foreground">
                 <ArrowLeft className="mr-1 h-4 w-4" /> Back
@@ -424,6 +535,27 @@ const Auth = () => {
                   {loading ? "Sending..." : "Send Reset Link"}
                 </Button>
               </form>
+            </div>
+          )}
+
+          {/* Signup confirmation pending */}
+          {step === "email" && signupConfirmation && (
+            <div className="text-center space-y-6">
+              <div className="w-20 h-20 mx-auto rounded-full bg-primary/10 flex items-center justify-center">
+                <Mail className="h-10 w-10 text-primary" />
+              </div>
+              <div className="space-y-2">
+                <h2 className="text-2xl font-bold">Confirm your email</h2>
+                <p className="text-muted-foreground">
+                  We sent a confirmation link to <span className="font-medium text-foreground">{email}</span>
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  Click the link in your email to activate your account, then return here to sign in.
+                </p>
+              </div>
+              <Button variant="outline" className="w-full min-h-[44px]" onClick={() => { setSignupConfirmation(false); setAuthMode("signin"); setPassword(""); }}>
+                Back to sign in
+              </Button>
             </div>
           )}
 
