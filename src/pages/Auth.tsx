@@ -517,7 +517,7 @@ const Auth = () => {
           )}
 
           {/* Forgot password */}
-          {step === "email" && showForgotPassword && (
+          {step === "email" && showForgotPassword && !signupConfirmation && (
             <div className="space-y-6">
               <button type="button" onClick={() => setShowForgotPassword(false)} className="flex items-center text-sm text-muted-foreground hover:text-foreground">
                 <ArrowLeft className="mr-1 h-4 w-4" /> Back
