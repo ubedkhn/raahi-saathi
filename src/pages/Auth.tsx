@@ -538,6 +538,27 @@ const Auth = () => {
             </div>
           )}
 
+          {/* Signup confirmation pending */}
+          {step === "email" && signupConfirmation && (
+            <div className="text-center space-y-6">
+              <div className="w-20 h-20 mx-auto rounded-full bg-primary/10 flex items-center justify-center">
+                <Mail className="h-10 w-10 text-primary" />
+              </div>
+              <div className="space-y-2">
+                <h2 className="text-2xl font-bold">Confirm your email</h2>
+                <p className="text-muted-foreground">
+                  We sent a confirmation link to <span className="font-medium text-foreground">{email}</span>
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  Click the link in your email to activate your account, then return here to sign in.
+                </p>
+              </div>
+              <Button variant="outline" className="w-full min-h-[44px]" onClick={() => { setSignupConfirmation(false); setAuthMode("signin"); setPassword(""); }}>
+                Back to sign in
+              </Button>
+            </div>
+          )}
+
           {/* Step: Check Email (Magic Link) */}
           {step === "verify-otp" && (
             <div className="text-center space-y-6">
