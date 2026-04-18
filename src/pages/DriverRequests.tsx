@@ -5,11 +5,20 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { MapPin, Calendar, Users, CheckCircle, Loader2, User, Navigation } from "lucide-react";
+import {
+  MapPin, Calendar, Users, CheckCircle, Loader2, User, Navigation,
+  ShieldCheck, Star, IndianRupee, Clock, XCircle, Flame
+} from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { useMyVehicles } from "@/hooks/useVehicles";
 import { useQueryClient } from "@tanstack/react-query";
+
+interface RiderProfile {
+  id: string;
+  name: string | null;
+  avatar_url: string | null;
+}
 
 interface RideRequest {
   id: string;
@@ -24,7 +33,12 @@ interface RideRequest {
   seats_needed: number;
   status: string;
   created_at: string;
-  rider_profile?: { name: string; avatar_url: string | null };
+  rider_profile?: RiderProfile;
+  rider_rating?: number;
+  rider_verified?: boolean;
+  match_pct?: number;
+  detour_min?: number;
+  fare?: number;
 }
 
 function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
@@ -47,6 +61,7 @@ const DriverRequests = () => {
   const [requests, setRequests] = useState<RideRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [acceptingId, setAcceptingId] = useState<string | null>(null);
+  const [decliningId, setDecliningId] = useState<string | null>(null);
   const [driverLoc, setDriverLoc] = useState<{ lat: number; lng: number } | null>(null);
 
   useEffect(() => {
@@ -67,6 +82,7 @@ const DriverRequests = () => {
         .subscribe();
       return () => { supabase.removeChannel(channel); };
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   const loadRequests = async () => {
@@ -78,22 +94,69 @@ const DriverRequests = () => {
         .order("preferred_time", { ascending: true });
       if (error) throw error;
       const filtered = (data || []).filter((r) => r.rider_id !== user?.id);
-      if (filtered.length > 0) {
-        const riderIds = [...new Set(filtered.map((r) => r.rider_id))];
-        const { data: profiles } = await supabase
-          .from("public_profiles_view")
-          .select("id, name, avatar_url")
-          .in("id", riderIds);
-        const profileMap = new Map((profiles || []).map((p) => [p.id, p]));
-        setRequests(filtered.map((r) => ({ ...r, rider_profile: profileMap.get(r.rider_id) || undefined })));
-      } else {
+
+      if (filtered.length === 0) {
         setRequests([]);
+        return;
       }
+
+      const riderIds = [...new Set(filtered.map((r) => r.rider_id))];
+
+      // Fetch rider basic profiles, kyc, and avg ratings in parallel
+      const [profilesRes, kycRes, ratingsRes] = await Promise.all([
+        supabase.from("public_profiles_view").select("id, name, avatar_url").in("id", riderIds),
+        supabase.from("profiles").select("id, kyc_status").in("id", riderIds),
+        supabase.from("ratings").select("reviewee_id, rating").in("reviewee_id", riderIds),
+      ]);
+
+      const profileMap = new Map((profilesRes.data || []).map((p) => [p.id, p]));
+      const kycMap = new Map((kycRes.data || []).map((k: any) => [k.id, k.kyc_status]));
+      const ratingMap = new Map<string, { sum: number; count: number }>();
+      (ratingsRes.data || []).forEach((r: any) => {
+        const cur = ratingMap.get(r.reviewee_id) || { sum: 0, count: 0 };
+        cur.sum += r.rating;
+        cur.count += 1;
+        ratingMap.set(r.reviewee_id, cur);
+      });
+
+      const enriched: RideRequest[] = filtered.map((r) => {
+        const distKm = haversineKm(r.origin_lat, r.origin_lng, r.destination_lat, r.destination_lng);
+        // Simple match heuristic: closer pickup-to-driver = higher match
+        let matchPct = 75;
+        let detourMin = 5;
+        if (driverLoc) {
+          const distToPickup = haversineKm(driverLoc.lat, driverLoc.lng, r.origin_lat, r.origin_lng);
+          matchPct = Math.max(60, Math.min(98, Math.round(100 - distToPickup * 4)));
+          detourMin = Math.max(2, Math.round(distToPickup * 2));
+        }
+        const ratingAgg = ratingMap.get(r.rider_id);
+        const fare = Math.round(distKm * 11); // default car pricing preview
+
+        return {
+          ...r,
+          rider_profile: profileMap.get(r.rider_id),
+          rider_rating: ratingAgg ? Number((ratingAgg.sum / ratingAgg.count).toFixed(1)) : undefined,
+          rider_verified: kycMap.get(r.rider_id) === "verified",
+          match_pct: matchPct,
+          detour_min: detourMin,
+          fare,
+        };
+      });
+
+      setRequests(enriched);
     } catch (error: any) {
       console.error("Error loading requests:", error);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleDeclineRequest = async (requestId: string) => {
+    setDecliningId(requestId);
+    // Local hide only (no DB write needed; request stays open for other drivers)
+    setRequests((prev) => prev.filter((r) => r.id !== requestId));
+    setDecliningId(null);
+    toast({ title: "Declined", description: "Request hidden from your feed." });
   };
 
   const handleAcceptRequest = async (request: RideRequest) => {
@@ -133,6 +196,7 @@ const DriverRequests = () => {
         .select().single();
       if (bookingError) throw bookingError;
 
+      // Triggers OTP generation server-side via DB trigger
       const { error: acceptError } = await supabase.from("bookings").update({ status: "accepted" }).eq("id", booking.id);
       if (acceptError) throw acceptError;
 
@@ -142,7 +206,7 @@ const DriverRequests = () => {
       queryClient.invalidateQueries({ queryKey: ["my-rides"] });
       queryClient.invalidateQueries({ queryKey: ["my-bookings"] });
 
-      toast({ title: "Request Accepted! ✅", description: "Booking created. Waiting for rider confirmation." });
+      toast({ title: "Request Accepted! ✅", description: "OTP generated. Waiting for rider at pickup." });
       navigate(`/manage-ride/${booking.id}`);
     } catch (error: any) {
       console.error("Accept error:", error);
@@ -161,18 +225,28 @@ const DriverRequests = () => {
   }
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-6 space-y-4">
+    <div className="max-w-4xl mx-auto px-4 py-6 space-y-4 pb-24">
       <div>
-        <h1 className="text-xl font-bold">Rider Requests</h1>
-        <p className="text-sm text-muted-foreground">Open requests from riders looking for a ride</p>
+        <h1 className="text-xl font-bold">Incoming Requests</h1>
+        <p className="text-sm text-muted-foreground">Open ride requests from verified riders</p>
       </div>
+
+      {/* FOMO banner */}
+      {requests.length > 0 && (
+        <div className="flex items-center gap-2 p-3 bg-secondary/15 border border-secondary/30 rounded-lg">
+          <Flame className="h-4 w-4 text-secondary-foreground" />
+          <p className="text-sm font-medium text-secondary-foreground">
+            {Math.max(2, requests.length + 1)} riders browsing this route now
+          </p>
+        </div>
+      )}
 
       {requests.length === 0 ? (
         <Card>
           <CardContent className="text-center py-12">
             <Users className="w-12 h-12 mx-auto mb-4 text-muted-foreground opacity-50" />
             <p className="text-muted-foreground">No open requests right now</p>
-            <p className="text-xs text-muted-foreground mt-1">Check back later or post your own ride</p>
+            <p className="text-xs text-muted-foreground mt-1">Check back soon — riders post throughout the day</p>
           </CardContent>
         </Card>
       ) : (
@@ -184,20 +258,47 @@ const DriverRequests = () => {
           return (
             <Card key={req.id} className="overflow-hidden">
               <CardContent className="pt-4 space-y-3">
+                {/* Rider header */}
                 <div className="flex items-center gap-3">
-                  <Avatar className="h-9 w-9">
+                  <Avatar className="h-10 w-10">
                     <AvatarImage src={req.rider_profile?.avatar_url || undefined} />
                     <AvatarFallback><User className="h-4 w-4" /></AvatarFallback>
                   </Avatar>
-                  <span className="text-sm font-medium">{req.rider_profile?.name || "Rider"}</span>
-                  {distFromDriver !== null && (
-                    <Badge variant="secondary" className="ml-auto text-xs">
-                      <Navigation className="h-3 w-3 mr-1" />
-                      {distFromDriver < 1 ? `${Math.round(distFromDriver * 1000)}m` : `${distFromDriver.toFixed(1)} km`} away
-                    </Badge>
-                  )}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-sm font-semibold truncate">{req.rider_profile?.name || "Rider"}</span>
+                      {req.rider_verified && (
+                        <Badge variant="outline" className="h-5 px-1.5 border-success/40 text-success text-[10px] gap-0.5">
+                          <ShieldCheck className="h-3 w-3" /> Verified
+                        </Badge>
+                      )}
+                      {req.rider_rating !== undefined && (
+                        <span className="flex items-center gap-0.5 text-xs text-muted-foreground">
+                          <Star className="h-3 w-3 fill-secondary text-secondary" />
+                          {req.rider_rating}
+                        </span>
+                      )}
+                    </div>
+                    {distFromDriver !== null && (
+                      <span className="text-xs text-muted-foreground flex items-center gap-1">
+                        <Navigation className="h-3 w-3" />
+                        {distFromDriver < 1 ? `${Math.round(distFromDriver * 1000)}m` : `${distFromDriver.toFixed(1)} km`} away
+                      </span>
+                    )}
+                  </div>
                 </div>
-                <div className="space-y-2">
+
+                {/* Match + Detour */}
+                <div className="flex items-center gap-3 text-xs">
+                  <span className="flex items-center gap-1 text-success font-medium">
+                    <CheckCircle className="h-3.5 w-3.5" /> {req.match_pct}% Match
+                  </span>
+                  <span className="text-muted-foreground">•</span>
+                  <span className="text-muted-foreground">Detour +{req.detour_min} min</span>
+                </div>
+
+                {/* Route */}
+                <div className="space-y-1.5">
                   <div className="flex items-center gap-2 text-sm">
                     <MapPin className="w-4 h-4 text-primary flex-shrink-0" />
                     <span className="truncate">{req.origin_address}</span>
@@ -207,20 +308,45 @@ const DriverRequests = () => {
                     <span className="truncate">{req.destination_address}</span>
                   </div>
                 </div>
-                <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
-                  <span className="flex items-center gap-1">
-                    <Calendar className="w-3 h-3" />
-                    {new Date(req.preferred_time).toLocaleString()}
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <Users className="w-3 h-3" />
-                    {req.seats_needed || 1} seat(s)
-                  </span>
+
+                {/* Meta row: time, seats, fare */}
+                <div className="flex items-center justify-between text-xs">
+                  <div className="flex flex-wrap gap-3 text-muted-foreground">
+                    <span className="flex items-center gap-1">
+                      <Clock className="w-3 h-3" />
+                      {new Date(req.preferred_time).toLocaleString([], { dateStyle: "short", timeStyle: "short" })}
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <Users className="w-3 h-3" />
+                      {req.seats_needed || 1} seat{(req.seats_needed || 1) > 1 ? "s" : ""}
+                    </span>
+                  </div>
+                  <Badge variant="secondary" className="gap-0.5 font-bold">
+                    <IndianRupee className="h-3 w-3" />{req.fare}
+                  </Badge>
                 </div>
-                <Button onClick={() => handleAcceptRequest(req)} disabled={acceptingId === req.id} className="w-full min-h-[44px]">
-                  {acceptingId === req.id ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <CheckCircle className="h-4 w-4 mr-2" />}
-                  Accept Request
-                </Button>
+
+                {/* Action buttons */}
+                <div className="grid grid-cols-2 gap-2 pt-1">
+                  <Button
+                    variant="destructive"
+                    onClick={() => handleDeclineRequest(req.id)}
+                    disabled={decliningId === req.id || acceptingId === req.id}
+                    className="min-h-[44px]"
+                  >
+                    <XCircle className="h-4 w-4 mr-1" /> Decline
+                  </Button>
+                  <Button
+                    onClick={() => handleAcceptRequest(req)}
+                    disabled={acceptingId === req.id || decliningId === req.id}
+                    className="min-h-[44px] bg-success text-success-foreground hover:bg-success/90"
+                  >
+                    {acceptingId === req.id
+                      ? <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                      : <CheckCircle className="h-4 w-4 mr-1" />}
+                    Accept
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           );

@@ -420,7 +420,7 @@ const PostRide = () => {
 
   // Get selected vehicle type for seat options
   const selectedVehicleData = verifiedVehicles.find(v => v.id === selectedVehicle);
-  const maxSeats = selectedVehicleData?.type === '2wheeler' ? 1 : 4;
+  const maxSeats = selectedVehicleData?.type === '2wheeler' ? 1 : 6;
 
   // Show loading only if we have no cached profile data
   if (authLoading || (profileLoading && !profile)) {
@@ -595,20 +595,21 @@ const PostRide = () => {
                         <Users className="w-4 h-4 text-primary" />
                         Available Seats *
                       </Label>
-                      <div className="flex gap-2">
-                        {[1, 2, 3, 4].map((num) => (
+                      <div className="grid grid-cols-6 gap-2">
+                        {[1, 2, 3, 4, 5, 6].map((num) => (
                           <Button
                             key={num}
                             type="button"
                             variant={seatsAvailable === num ? "default" : "outline"}
                             onClick={() => setSeatsAvailable(num)}
                             disabled={num > maxSeats}
-                            className="flex-1 min-h-[44px]"
+                            className="min-h-[44px]"
                           >
                             {num}
                           </Button>
                         ))}
                       </div>
+                      <p className="text-xs text-muted-foreground">Cars allow up to 6 seats</p>
                     </div>
                   )}
 
