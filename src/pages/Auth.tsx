@@ -112,24 +112,86 @@ const Auth = () => {
     }
   }, [step]);
 
-  const handleSendOtp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setEmailError("");
+  const validateEmail = () => {
     const result = z.string().trim().email("Enter a valid email").safeParse(email);
     if (!result.success) {
       setEmailError(result.error.errors[0].message);
+      return null;
+    }
+    return result.data;
+  };
+
+  const handlePasswordAuth = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setEmailError("");
+    setPasswordError("");
+    const validEmail = validateEmail();
+    if (!validEmail) return;
+
+    if (authMode === "signup") {
+      const pwSchema = z.string()
+        .min(8, "Min 8 characters")
+        .regex(/[A-Z]/, "Need uppercase")
+        .regex(/[a-z]/, "Need lowercase")
+        .regex(/[0-9]/, "Need number");
+      const pwResult = pwSchema.safeParse(password);
+      if (!pwResult.success) {
+        setPasswordError(pwResult.error.errors[0].message);
+        return;
+      }
+    } else if (!password) {
+      setPasswordError("Enter your password");
       return;
     }
+
     setLoading(true);
     try {
-      const { error } = await supabase.auth.signInWithOtp({
-        email: result.data,
-      });
+      if (authMode === "signup") {
+        const { data, error } = await supabase.auth.signUp({
+          email: validEmail,
+          password,
+          options: { emailRedirectTo: `${window.location.origin}/dashboard` },
+        });
+        if (error) throw error;
+        if (data.session) {
+          // Auto-confirmed - SIGNED_IN handler takes over
+        } else {
+          setSignupConfirmation(true);
+        }
+      } else {
+        const { error } = await supabase.auth.signInWithPassword({
+          email: validEmail,
+          password,
+        });
+        if (error) throw error;
+        // SIGNED_IN handler takes over
+      }
+    } catch (error: any) {
+      const msg = error?.message || "Authentication failed";
+      if (msg.toLowerCase().includes("invalid login")) {
+        setPasswordError("Incorrect email or password");
+      } else if (msg.toLowerCase().includes("already registered") || msg.toLowerCase().includes("already exists")) {
+        setEmailError("Email already registered. Try signing in.");
+      } else {
+        toast({ title: "Error", description: msg, variant: "destructive" });
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSendMagicLink = async () => {
+    setEmailError("");
+    const validEmail = validateEmail();
+    if (!validEmail) return;
+    setLoading(true);
+    try {
+      const { error } = await supabase.auth.signInWithOtp({ email: validEmail });
       if (error) throw error;
       setStep("verify-otp");
       setResendTimer(30);
     } catch (error: any) {
-      toast({ title: "Error", description: error.message || "Failed to send OTP", variant: "destructive" });
+      toast({ title: "Error", description: error.message || "Failed to send link", variant: "destructive" });
     } finally {
       setLoading(false);
     }
