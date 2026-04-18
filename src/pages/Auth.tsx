@@ -420,7 +420,7 @@ const Auth = () => {
       <div className="flex-1 flex flex-col items-center justify-center p-6">
         <div className="w-full max-w-md">
           {/* Step: Email Entry */}
-          {step === "email" && !showForgotPassword && (
+          {step === "email" && !showForgotPassword && !signupConfirmation && (
             <div className="space-y-6">
               <div className="text-center space-y-2">
                 <h1 className="text-4xl font-bold text-primary">Raahi</h1>
