@@ -9,6 +9,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { ArrowLeft, Eye, EyeOff, Mail, MapPin, Bell, Check, ChevronRight } from "lucide-react";
 import { z } from "zod";
 import { useUpdateProfile } from "@/hooks/useProfile";
+import { friendlyError } from "@/lib/utils";
 
 type AuthStep = "email" | "verify-otp" | "complete-profile" | "permissions" | "reset-password";
 
@@ -167,13 +168,13 @@ const Auth = () => {
         // SIGNED_IN handler takes over
       }
     } catch (error: any) {
-      const msg = error?.message || "Authentication failed";
-      if (msg.toLowerCase().includes("invalid login")) {
+      const msg = String(error?.message || "").toLowerCase();
+      if (msg.includes("invalid login")) {
         setPasswordError("Incorrect email or password");
-      } else if (msg.toLowerCase().includes("already registered") || msg.toLowerCase().includes("already exists")) {
+      } else if (msg.includes("already registered") || msg.includes("already exists")) {
         setEmailError("Email already registered. Try signing in.");
       } else {
-        toast({ title: "Error", description: msg, variant: "destructive" });
+        toast({ title: "Error", description: friendlyError(error, "Authentication failed"), variant: "destructive" });
       }
     } finally {
       setLoading(false);
@@ -191,7 +192,7 @@ const Auth = () => {
       setStep("verify-otp");
       setResendTimer(30);
     } catch (error: any) {
-      toast({ title: "Error", description: error.message || "Failed to send link", variant: "destructive" });
+      toast({ title: "Error", description: friendlyError(error, "Failed to send link"), variant: "destructive" });
     } finally {
       setLoading(false);
     }
@@ -238,7 +239,7 @@ const Auth = () => {
       if (error) throw error;
       // SIGNED_IN event will handle the rest via onAuthStateChange
     } catch (error: any) {
-      toast({ title: "Invalid OTP", description: error.message || "Please check the code and try again", variant: "destructive" });
+      toast({ title: "Invalid OTP", description: friendlyError(error, "Please check the code and try again"), variant: "destructive" });
       setOtp(["", "", "", "", "", ""]);
       otpRefs.current[0]?.focus();
     } finally {
@@ -256,7 +257,7 @@ const Auth = () => {
       setOtp(["", "", "", "", "", ""]);
       toast({ title: "OTP sent!", description: "Check your email inbox." });
     } catch (error: any) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      toast({ title: "Error", description: friendlyError(error), variant: "destructive" });
     } finally {
       setLoading(false);
     }
@@ -317,7 +318,7 @@ const Auth = () => {
         throw result.error;
       }
     } catch (error: any) {
-      const msg = error?.message || "Unable to sign in with Google. Please try again.";
+      const msg = friendlyError(error, "Unable to sign in with Google. Please try again.");
       toast({ title: "Google Sign-In Failed", description: msg, variant: "destructive" });
     } finally {
       setLoading(false);
@@ -338,7 +339,7 @@ const Auth = () => {
       toast({ title: "Reset link sent!", description: "Check your inbox." });
       setShowForgotPassword(false);
     } catch (error: any) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      toast({ title: "Error", description: friendlyError(error), variant: "destructive" });
     } finally { setLoading(false); }
   };
 
@@ -364,7 +365,7 @@ const Auth = () => {
       toast({ title: "Password updated!", description: "You can now sign in." });
       navigate("/dashboard");
     } catch (error: any) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      toast({ title: "Error", description: friendlyError(error), variant: "destructive" });
     } finally { setLoading(false); }
   };
 

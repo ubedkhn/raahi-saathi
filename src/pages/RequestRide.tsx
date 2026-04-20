@@ -9,6 +9,7 @@ import { MapPin, Calendar, Clock, Users, Send } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { LocationInput, LocationData } from "@/components/common";
 import { useAuth } from "@/hooks/useAuth";
+import { friendlyError } from "@/lib/utils";
 
 const RequestRide = () => {
   const navigate = useNavigate();
@@ -95,7 +96,7 @@ const RequestRide = () => {
     } catch (error: any) {
       toast({
         title: "Failed to post request",
-        description: error.message || "Something went wrong",
+        description: friendlyError(error),
         variant: "destructive",
       });
     } finally {
