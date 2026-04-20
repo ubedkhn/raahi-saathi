@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import RideTrackingModal from "@/components/ride-tracking/RideTrackingModal";
 import { LocationInput, LocationData } from "@/components/common";
 import { reverseGeocode } from "@/utils/geocoding";
+import { friendlyError } from "@/lib/utils";
 
 interface Ride {
   id: string;
@@ -116,7 +117,7 @@ const SearchRides = () => {
     } catch (error: any) {
       console.error("Search error:", error);
       toast.error("Search failed", {
-        description: error.message,
+        description: friendlyError(error),
       });
     } finally {
       setLoading(false);
@@ -173,7 +174,7 @@ const SearchRides = () => {
     } catch (error: any) {
       console.error("Booking error:", error);
       toast.error("Booking failed", {
-        description: error.message,
+        description: friendlyError(error),
       });
     }
   };
@@ -221,26 +222,10 @@ const SearchRides = () => {
                 placeholder="Time"
               />
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Button type="submit" className="w-full min-h-[44px]" disabled={loading}>
-                <Search className="mr-2 h-4 w-4" />
-                {loading ? "Searching..." : "Search Rides"}
-              </Button>
-              <Button 
-                type="button"
-                onClick={() => {
-                  const now = new Date();
-                  setDate(now.toISOString().split('T')[0]);
-                  setTime(now.toTimeString().slice(0, 5));
-                  setTimeout(() => handleSearch(new Event("submit") as any), 100);
-                }}
-                disabled={loading}
-                className="w-full bg-gradient-to-r from-orange-500 to-red-500 active:from-orange-600 active:to-red-600 text-white shadow-lg active:shadow-xl transition-all uppercase font-semibold min-h-[44px]"
-                size="lg"
-              >
-                🚀 Get Ride Immediately
-              </Button>
-            </div>
+            <Button type="submit" className="w-full min-h-[44px]" disabled={loading}>
+              <Search className="mr-2 h-4 w-4" />
+              {loading ? "Searching..." : "Search Rides"}
+            </Button>
           </form>
         </CardContent>
       </Card>

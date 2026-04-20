@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import SearchModal from "@/components/search/SearchModal";
 
 interface NearbyRide {
   id: string;
@@ -45,7 +46,6 @@ const Dashboard = () => {
   const [showSearch, setShowSearch] = useState(false);
   const [recentDests, setRecentDests] = useState<RecentDest[]>([]);
   const [saveAddressType, setSaveAddressType] = useState<"home" | "work" | null>(null);
-  const [selectedDest, setSelectedDest] = useState<LocationData | null>(null);
   const [nearbyRides, setNearbyRides] = useState<NearbyRide[]>([]);
   const [loadingRides, setLoadingRides] = useState(true);
   const [activeFilter, setActiveFilter] = useState<string | null>(null);
@@ -154,11 +154,6 @@ const Dashboard = () => {
     } finally {
       setLoadingRides(false);
     }
-  };
-
-  const handleLocationSelect = (location: LocationData) => {
-    setSelectedDest(location);
-    setShowSearch(false);
   };
 
   const navigateToSearch = (dest: { address: string; lat: number; lng: number }) => {
@@ -452,154 +447,8 @@ const Dashboard = () => {
         <AlertTriangle className="h-5 w-5" />
       </button>
 
-      {/* Ride Options Dialog — Instant vs Schedule (matches reference UI) */}
-      <Dialog open={!!selectedDest} onOpenChange={() => setSelectedDest(null)}>
-        <DialogContent className="max-w-sm mx-4 p-0 overflow-hidden">
-          <DialogHeader className="px-5 pt-5 pb-2">
-            <DialogTitle className="text-base">Choose your ride</DialogTitle>
-          </DialogHeader>
-          {selectedDest && (
-            <div className="px-4 pb-4 space-y-3">
-              {/* Route summary */}
-              <div className="bg-muted/40 rounded-xl p-3 space-y-1.5">
-                <div className="flex items-center gap-2 text-xs">
-                  <span className="h-2 w-2 rounded-full bg-primary flex-shrink-0" />
-                  <span className="truncate text-muted-foreground">{originAddress || "Current location"}</span>
-                </div>
-                <div className="flex items-center gap-2 text-xs">
-                  <span className="h-2 w-2 rounded-full bg-action flex-shrink-0" />
-                  <span className="truncate font-medium">{selectedDest.address}</span>
-                </div>
-              </div>
-
-              {/* Instant Ride - Orange graphic card */}
-              <button
-                className="w-full rounded-2xl gradient-action text-white text-left active:scale-[0.98] transition-transform shadow-lg overflow-hidden relative"
-                onClick={() => {
-                  navigateToSearch({ address: selectedDest.address, lat: selectedDest.latitude, lng: selectedDest.longitude });
-                  setSelectedDest(null);
-                }}
-              >
-                <div className="px-5 py-4 flex items-center justify-between">
-                  <div>
-                    <p className="font-extrabold text-xl leading-tight">🚀 Instant Ride</p>
-                    <p className="text-sm opacity-95 mt-0.5">Find Ride Now</p>
-                  </div>
-                  <div className="text-3xl opacity-90">🛵</div>
-                </div>
-              </button>
-
-              {/* Schedule Ride - Green graphic card */}
-              <button
-                className="w-full rounded-2xl bg-success text-success-foreground text-left active:scale-[0.98] transition-transform shadow-lg overflow-hidden relative"
-                onClick={() => {
-                  navigateToRequest({ address: selectedDest.address, lat: selectedDest.latitude, lng: selectedDest.longitude });
-                  setSelectedDest(null);
-                }}
-              >
-                <div className="px-5 py-4 flex items-center justify-between">
-                  <div>
-                    <p className="font-extrabold text-xl leading-tight">📅 Schedule Ride</p>
-                    <p className="text-sm opacity-95 mt-0.5">Plan for Later</p>
-                  </div>
-                  <div className="text-3xl opacity-90">🗓️</div>
-                </div>
-              </button>
-
-              {/* Drivers-nearby banner (FOMO + savings) */}
-              {nearbyRides.length > 0 && (
-                <div className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground pt-1">
-                  <MapPin className="h-3.5 w-3.5 text-primary" />
-                  <span><span className="font-semibold text-foreground">{nearbyRides.length} drivers nearby</span> · Save up to ₹200 vs Uber</span>
-                </div>
-              )}
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
-
-      {/* Full Screen Search Modal */}
-      {showSearch && (
-        <div className="fixed inset-0 bg-background z-50 flex flex-col">
-          <div className="gradient-hero px-4 pt-3 pb-4">
-            <div className="flex items-center gap-3 mb-3">
-              <button onClick={() => setShowSearch(false)} className="p-2 -ml-2 text-primary-foreground hover:bg-white/10 rounded-full transition-colors">
-                <X className="h-5 w-5" />
-              </button>
-              <h2 className="text-lg font-bold text-primary-foreground">Search Destination</h2>
-            </div>
-            {/* Origin */}
-            <div className="bg-card rounded-xl p-3 space-y-2">
-              <div className="flex items-center gap-3">
-                <MapPin className="h-4 w-4 text-primary flex-shrink-0" />
-                <span className="text-sm text-muted-foreground truncate">{originAddress || "Current location"}</span>
-              </div>
-              <div className="border-l-2 border-dashed border-border ml-2 h-3" />
-              <LocationInput
-                placeholder="Where to?"
-                onLocationSelect={handleLocationSelect}
-                icon="destination"
-                className="border-0 shadow-none"
-              />
-            </div>
-          </div>
-
-          <div className="flex-1 p-4 overflow-y-auto">
-            {/* Saved Addresses */}
-            {(homeAddr || workAddr) && (
-              <div className="mb-4 space-y-2">
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Saved Places</p>
-                {homeAddr && (
-                  <button onClick={() => { setShowSearch(false); handleQuickDestClick("home"); }}
-                    className="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-accent/50 transition-colors text-left">
-                    <div className="w-8 h-8 rounded-full bg-accent flex items-center justify-center">
-                      <Home className="h-4 w-4 text-primary" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium">Home</p>
-                      <p className="text-xs text-muted-foreground truncate">{homeAddr}</p>
-                    </div>
-                  </button>
-                )}
-                {workAddr && (
-                  <button onClick={() => { setShowSearch(false); handleQuickDestClick("work"); }}
-                    className="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-accent/50 transition-colors text-left">
-                    <div className="w-8 h-8 rounded-full bg-accent flex items-center justify-center">
-                      <Briefcase className="h-4 w-4 text-primary" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium">Work</p>
-                      <p className="text-xs text-muted-foreground truncate">{workAddr}</p>
-                    </div>
-                  </button>
-                )}
-              </div>
-            )}
-
-            {recentDests.length > 0 && (
-              <div className="space-y-2">
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Recent</p>
-                {recentDests.map((dest, i) => (
-                  <button key={i} onClick={() => { setShowSearch(false); navigateToSearch(dest); }}
-                    className="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-accent/50 transition-colors text-left">
-                    <div className="w-8 h-8 rounded-full bg-accent flex items-center justify-center">
-                      <Clock className="h-4 w-4 text-muted-foreground" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium truncate">{dest.address.split(",")[0]}</p>
-                      <p className="text-xs text-muted-foreground truncate">{dest.address}</p>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            )}
-
-            {!homeAddr && !workAddr && recentDests.length === 0 && (
-              <p className="text-sm text-muted-foreground text-center mt-8">Start typing to search for destinations</p>
-            )}
-          </div>
-        </div>
-      )}
+      {/* New SearchModal — replaces legacy full-screen search + post-select dialog */}
+      <SearchModal open={showSearch} onClose={() => setShowSearch(false)} />
 
       {/* Save Address Dialog */}
       <Dialog open={!!saveAddressType} onOpenChange={() => setSaveAddressType(null)}>

@@ -958,6 +958,25 @@ export type Database = {
           name: string
         }[]
       }
+      get_ride_participant_profile_safe: {
+        Args: { _id: string }
+        Returns: {
+          avatar_url: string
+          gender: Database["public"]["Enums"]["gender"]
+          id: string
+          kyc_status: Database["public"]["Enums"]["kyc_status"]
+          name: string
+        }[]
+      }
+      get_ride_vehicle_public: {
+        Args: { _ride_id: string }
+        Returns: {
+          brand: string
+          model: string
+          type: Database["public"]["Enums"]["vehicle_type"]
+          verified: boolean
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
