@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import SearchModal from "@/components/search/SearchModal";
 
 interface NearbyRide {
   id: string;
@@ -45,7 +46,6 @@ const Dashboard = () => {
   const [showSearch, setShowSearch] = useState(false);
   const [recentDests, setRecentDests] = useState<RecentDest[]>([]);
   const [saveAddressType, setSaveAddressType] = useState<"home" | "work" | null>(null);
-  const [selectedDest, setSelectedDest] = useState<LocationData | null>(null);
   const [nearbyRides, setNearbyRides] = useState<NearbyRide[]>([]);
   const [loadingRides, setLoadingRides] = useState(true);
   const [activeFilter, setActiveFilter] = useState<string | null>(null);
@@ -154,11 +154,6 @@ const Dashboard = () => {
     } finally {
       setLoadingRides(false);
     }
-  };
-
-  const handleLocationSelect = (location: LocationData) => {
-    setSelectedDest(location);
-    setShowSearch(false);
   };
 
   const navigateToSearch = (dest: { address: string; lat: number; lng: number }) => {

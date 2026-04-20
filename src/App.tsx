@@ -39,6 +39,7 @@ import Terms from "./pages/Terms";
 import BookingConfirmation from "./pages/BookingConfirmation";
 import ReferralHub from "./pages/ReferralHub";
 import WomenOnlyMode from "./pages/WomenOnlyMode";
+import RequestPosted from "./pages/RequestPosted";
 
 // Auth-aware root route component
 const RootRoute = () => {
@@ -110,6 +111,7 @@ const App = () => (
               <Route path="/booking-confirmation" element={<BookingConfirmation />} />
               <Route path="/referral" element={<ReferralHub />} />
               <Route path="/women-only" element={<WomenOnlyMode />} />
+              <Route path="/request-posted/:requestId" element={<RequestPosted />} />
             </Route>
             
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
