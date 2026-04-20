@@ -1,87 +1,109 @@
 
 
-# Plan: Fix Signup, Theme, Search Text & Ola Maps Integration
+# Plan: New Search Modal + End-to-End Flow + Security Fixes
 
-## Key Findings
+## What you'll get
 
-1. **Signup/OTP Issue**: The screenshot confirms Supabase is sending magic links ("One-time login link" with a "Log In" button) instead of OTP codes. The `signInWithOtp` API in Supabase sends magic links by default. To get a 6-digit code, the email template must be configured for OTP, OR we need to use a different approach. Since we cannot modify Supabase auth config directly, the practical fix is to **keep the magic link flow but handle it properly in-tab** — or switch to email/password signup for new users and use magic link for returning users. The cleanest approach: use `signInWithOtp` but detect when the user clicks the magic link (which redirects back to `/auth`) and handle it via `onAuthStateChange`. The current code already does this but the email says "login link" not "OTP code" — this is a Supabase configuration issue. We'll add a custom auth edge function that sends a real OTP via email.
+A completely rebuilt Search experience on the Home screen using **react-leaflet + OpenStreetMap** (no API keys, no CORS issues), proper request/match flow, and three security hardening fixes.
 
-   **Actually**, the simpler fix: For new user creation, use `supabase.auth.signUp({ email, password })` with a generated temp password, then immediately send OTP. But the cleanest: just embrace the magic link flow — change the UI to say "Check your email for a login link" instead of showing OTP boxes.
+## 1. New SearchModal (replaces the old full-screen "Search Destination" view in `Dashboard.tsx`)
 
-2. **Theme Toggle**: `next-themes` is installed and `ThemeProvider` wraps the app with `attribute="class"` and `enableSystem`. The Settings page uses `useTheme()`. This should work. Let me check if there's a CSS issue — the `index.css` likely has proper `.dark` class definitions. The issue might be that the theme isn't persisting or the `storageKey` isn't set.
+A single bottom-sheet style modal that opens when the user taps "Where to?" on Home:
 
-3. **Search bar text**: Line 136 in Dashboard.tsx — easy text change.
+```text
+┌─────────────────────────────────────┐
+│ ← Plan your ride                    │
+├─────────────────────────────────────┤
+│ 🟢 From  [editable input.........]  │  ← prefilled via GPS reverse-geocode
+│  │       suggestions dropdown ▼     │
+│ 🔴 To    [editable input.........]  │
+│          suggestions dropdown ▼     │
+├─────────────────────────────────────┤
+│ ┌─────────────────────────────────┐ │
+│ │   Inline Leaflet map (180px)   │ │
+│ │   draggable marker = From       │ │
+│ └─────────────────────────────────┘ │
+├─────────────────────────────────────┤
+│ ┌──────────────┐  ┌──────────────┐  │
+│ │ 🚀 Instant   │  │ 📅 Schedule  │  │
+│ │ Find Now     │  │ Plan Later   │  │
+│ │ orange CTA   │  │ green CTA    │  │
+│ └──────────────┘  └──────────────┘  │
+│  3 drivers nearby · Save ₹200      │
+└─────────────────────────────────────┘
+```
 
-4. **Ola Maps**: Need to replace Google Maps (DashboardMap, NearbyRidesMap) and Mapbox (geocoding, DriverArrivingMap, TripInProgressMap) with Ola Maps APIs. Ola Maps has a Web SDK (`olamaps-web-sdk` npm package) and REST APIs for geocoding, autocomplete, directions, and distance matrix.
+Behavior:
+- **From** auto-fills from GPS reverse geocode (via existing `ola-maps-proxy`); fully editable; dragging the map marker updates it live.
+- **To** is empty with placeholder "Where to?"; debounced autocomplete via `ola-maps-proxy` (already wired and working).
+- CTAs are **disabled until both have valid lat/lng**.
+- The legacy full-screen search view and the post-select Dialog (lines 455–602 of `Dashboard.tsx`) are **deleted** so there is no UI regression.
 
-## Tasks
+## 2. CTA flow
 
-### 1. Fix Signup — Switch to Magic Link UI (not fake OTP)
+**Instant Ride (orange):**
+1. Insert a row into `ride_requests` with `status='open'`, `preferred_time = now()`, both coords + addresses.
+2. Run a client-side match query against `rides` (status=scheduled, future start_time, origin within ~3 km AND destination within ~3 km using lat/lng bounding box + Haversine in JS).
+3. If matches found → navigate to `/search-rides?...` showing matching rides list (existing screen, already supports Book Now → OTP-protected booking).
+4. If no matches → navigate to a new lightweight **"Request posted — waiting for driver"** screen at `/request-posted/:requestId` with realtime status (Supabase channel on `ride_requests` row).
 
-The root cause: `supabase.auth.signInWithOtp({ email })` sends a magic link email, not an OTP code. Supabase only sends OTP codes for phone-based OTP, not email. The email "OTP" is actually a magic link.
+**Schedule Ride (green):**
+1. Open inline schedule sheet inside the modal (date picker, time picker, seats 1–6 with 2W cap of 1, fare suggestion ₹6–7/km for 2W vs ₹10–12/km for 4W).
+2. Submit creates `ride_requests` with chosen `preferred_time` and `seats_needed`.
+3. Same match → matches list or "Request posted" confirmation.
 
-**Fix**: Change the verify step UI from "Enter 6-digit OTP" to "Check your email for a login link." Remove the OTP input boxes. Show a waiting screen with a "Resend" button. When the user clicks the magic link in the email, `onAuthStateChange('SIGNED_IN')` fires and the profile completion flow continues.
+Drivers already see open `ride_requests` in `/driver-requests` (KYC-verified gating already in place there).
 
-This matches what Supabase actually sends (as shown in the screenshot).
+## 3. Security fixes (migration + RLS)
 
-### 2. Fix Theme Toggle
+**a) Profile PII leak to ride participants** — current policy `Ride participants can view basic info` exposes the full `profiles` row (Aadhaar, DL, KYC docs).
+- Drop that policy.
+- Create SECURITY DEFINER function `public.get_ride_participant_profile_safe(_id uuid)` returning only `id, name, avatar_url, gender, kyc_status` (no PII).
+- Update `Dashboard.tsx`, `SearchRides.tsx`, `DriverRequests.tsx` queries that join `profiles` to either select only safe columns or call the new function.
 
-Check `src/index.css` for `.dark` class styles. The ThemeProvider config looks correct. Possible issue: `next-themes` needs `storageKey` or there's a CSS specificity issue. Will verify and fix.
+**b) Vehicle registration publicly readable** — current policy `Anyone can view verified vehicles` exposes registration numbers.
+- Drop that policy.
+- Replace with: `Ride participants can view ride vehicle` — allows SELECT only when the requesting user is the driver OR has a booking on a `rides` row that uses this `vehicle_id`. Owner-self SELECT policy stays.
+- Dashboard's nearby-rides card will continue to show vehicle brand/model/type via the existing `rides → vehicles` join, restricted by the new policy (drivers' own vehicles + booked riders).
+- For the public Home feed where we need brand/model only (not registration), add a SECURITY DEFINER function `public.get_ride_vehicle_public(_ride_id uuid)` returning only `type, brand, model, verified` and refactor the Dashboard nearby-rides query to use it.
 
-### 3. Search Bar Text Change
+**c) Verbose Supabase errors** — Add a small `friendlyError(error)` helper in `src/lib/utils.ts` mapping known codes/messages to generic strings ("Something went wrong, please try again", "Email already in use", etc.); replace `error.message` toasts in `Auth.tsx`, `RequestRide.tsx`, `SearchRides.tsx`, and the new SearchModal.
 
-In `Dashboard.tsx` line 136, change `"Where are you going?"` to use the user's name: `Where you wanna go, {profile?.name?.split(' ')[0] || 'there'}?`
+(Admin client-side check note from the scanner is already mitigated by RLS on admin tables; no code change needed there beyond what exists.)
 
-### 4. Ola Maps Integration
+## 4. Files
 
-**Requires OLA_MAPS_API_KEY as a secret.** All API calls go through edge functions.
+**Create:**
+- `src/components/search/SearchModal.tsx` — the new modal (Leaflet map, two inputs, autocomplete, CTAs, schedule sheet).
+- `src/components/search/MiniMap.tsx` — react-leaflet wrapper with draggable marker.
+- `src/pages/RequestPosted.tsx` — "waiting for driver" screen with realtime updates.
+- `supabase/migrations/<ts>_secure_profiles_vehicles.sql` — security fixes (a) and (b).
 
-#### New Edge Functions:
-- `supabase/functions/ola-maps-proxy/index.ts` — Single proxy for all Ola Maps API calls:
-  - Autocomplete: `GET https://api.olamaps.io/places/v1/autocomplete?input=...&api_key=...`
-  - Geocode: `GET https://api.olamaps.io/places/v1/geocode?address=...&api_key=...`
-  - Reverse Geocode: `GET https://api.olamaps.io/places/v1/reverse-geocode?latlng=...&api_key=...`
-  - Directions: `POST https://api.olamaps.io/routing/v1/directions?origin=...&destination=...&api_key=...`
-  - Distance Matrix: `GET https://api.olamaps.io/routing/v1/distanceMatrix?origins=...&destinations=...&api_key=...`
+**Modify:**
+- `src/pages/Dashboard.tsx` — remove old full-screen search + post-select dialog; mount `<SearchModal />`; refactor nearby-rides query to use safe RPC.
+- `src/pages/SearchRides.tsx` — accept new query params, drop `Get Ride Immediately` button (handled by Instant CTA now), use friendly errors, use safe profile select.
+- `src/pages/DriverRequests.tsx` — use safe profile select.
+- `src/pages/Auth.tsx`, `src/pages/RequestRide.tsx` — use `friendlyError()`.
+- `src/lib/utils.ts` — add `friendlyError()` helper.
+- `src/App.tsx` — register `/request-posted/:requestId`.
+- `src/pages/Profile.tsx` — fix the `Navigator.share` permission-denied error (wrap in try/catch and fall back to `navigator.clipboard.writeText` when share is unavailable or denied).
+- `package.json` — add `leaflet`, `react-leaflet`, `@types/leaflet`.
 
-#### Frontend Changes:
-- **Remove** `mapbox-gl` dependency, `@types/google.maps` reference
-- **Replace** `supabase/functions/mapbox-geocode/index.ts` with Ola Maps proxy calls
-- **Replace** `supabase/functions/google-maps-key/index.ts` — delete
-- **Update** `src/utils/geocoding.ts` to call `ola-maps-proxy` instead of `mapbox-geocode`
-- **Rewrite** `DashboardMap.tsx` to use Ola Maps Web SDK (`olamaps-web-sdk` npm package) instead of Google Maps
-- **Rewrite** `NearbyRidesMap.tsx` same
-- **Rewrite** `DriverArrivingMap.tsx` and `TripInProgressMap.tsx` to use Ola Maps instead of Mapbox
-- **Update** `LocationInput.tsx` to use Ola Maps autocomplete via the proxy edge function
-- **Update** `DriverRequests.tsx` distance calculation to use Ola Maps Distance Matrix API (or keep Haversine — simpler and no API call needed)
+**No changes** to the bottom navigation, OTP triggers, payment functions, or Auth flow logic.
 
-#### Install:
-- `olamaps-web-sdk` npm package
-- Remove `mapbox-gl` dependency
+## 5. Tech notes
 
-## Files to Create/Modify
+- **Leaflet tiles:** `https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png` with proper attribution. Map sized 100% × 180px inside the modal — mobile-friendly, no scroll trap (gestureHandling = single-finger drag only).
+- **Geocoding stays on `ola-maps-proxy`** (already deployed, key is set, autocomplete works). No need to add Nominatim — it would just duplicate functionality and add rate-limit risk. The Leaflet map only renders OSM tiles; geocoding is independent.
+- **Matching heuristic:** Haversine in JS, 3 km radius on both endpoints, `match% = round(100 - (originDistKm + destDistKm) * 10)` clamped to 60–99.
+- **Realtime** for `/request-posted/:id` via Supabase channel on `ride_requests` filtered by `id=eq.<id>`; when a driver inserts a booking against a matched ride, navigate to `/manage-ride/:bookingId`.
+- **Theme:** uses existing tokens — `gradient-action` (orange) for Instant, `bg-success` (green) for Schedule, `gradient-hero` for modal header.
 
-**New:**
-- `supabase/functions/ola-maps-proxy/index.ts`
+## QA runbook
 
-**Modified:**
-- `src/pages/Auth.tsx` — Magic link waiting screen instead of OTP boxes
-- `src/pages/Dashboard.tsx` — Search bar text with user name
-- `src/pages/Settings.tsx` — Verify theme toggle works (may need minor fix)
-- `src/utils/geocoding.ts` — Use ola-maps-proxy
-- `src/components/dashboard/DashboardMap.tsx` — Ola Maps Web SDK
-- `src/components/dashboard/NearbyRidesMap.tsx` — Ola Maps Web SDK
-- `src/components/ride-tracking/DriverArrivingMap.tsx` — Ola Maps Web SDK
-- `src/components/ride-tracking/TripInProgressMap.tsx` — Ola Maps Web SDK
-- `src/components/common/LocationInput.tsx` — Ola Maps autocomplete
-- `supabase/config.toml` — Add ola-maps-proxy function config
-- `src/vite-env.d.ts` — Remove Google Maps types reference
-
-**Delete:**
-- `supabase/functions/google-maps-key/index.ts` (replaced by ola-maps-proxy)
-- `supabase/functions/mapbox-geocode/index.ts` (replaced by ola-maps-proxy)
-
-## Prerequisites
-
-Before implementation, the **OLA_MAPS_API_KEY** secret must be added. I'll use the `add_secret` tool to request it from the user.
+1. Tap "Where to?" on Home → SearchModal opens with From prefilled and editable, To empty.
+2. Drag the map marker → From input updates within ~500 ms.
+3. Type "BKC" in To → suggestions appear → tap one → CTAs become enabled.
+4. Tap **Instant Ride** → if a matching scheduled ride exists, lands on `/search-rides` showing it; otherwise lands on `/request-posted/<id>` with "Waiting for driver" copy.
+5. Tap **Schedule Ride** → schedule sheet opens → pick date/time/seats/fare → submit → same matches/waiting branch.
 
