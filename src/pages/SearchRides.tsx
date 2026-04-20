@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import RideTrackingModal from "@/components/ride-tracking/RideTrackingModal";
 import { LocationInput, LocationData } from "@/components/common";
 import { reverseGeocode } from "@/utils/geocoding";
+import { friendlyError } from "@/lib/utils";
 
 interface Ride {
   id: string;
@@ -116,7 +117,7 @@ const SearchRides = () => {
     } catch (error: any) {
       console.error("Search error:", error);
       toast.error("Search failed", {
-        description: error.message,
+        description: friendlyError(error),
       });
     } finally {
       setLoading(false);
@@ -173,7 +174,7 @@ const SearchRides = () => {
     } catch (error: any) {
       console.error("Booking error:", error);
       toast.error("Booking failed", {
-        description: error.message,
+        description: friendlyError(error),
       });
     }
   };

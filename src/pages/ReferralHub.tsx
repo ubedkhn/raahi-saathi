@@ -29,13 +29,18 @@ const ReferralHub = () => {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handleShare = () => {
+  const handleShare = async () => {
     if (navigator.share) {
-      navigator.share({
-        title: "Join Raahi!",
-        text: `Use my code ${referralCode} to get a free ride on Raahi!`,
-        url: "https://raahi-saathi.lovable.app",
-      });
+      try {
+        await navigator.share({
+          title: "Join Raahi!",
+          text: `Use my code ${referralCode} to get a free ride on Raahi!`,
+          url: "https://raahi-saathi.lovable.app",
+        });
+      } catch (err: any) {
+        // User dismissed or permission denied — silently fall back to copy
+        if (err?.name !== "AbortError") handleCopy();
+      }
     } else {
       handleCopy();
     }
