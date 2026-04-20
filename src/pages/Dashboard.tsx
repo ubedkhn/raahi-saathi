@@ -452,55 +452,66 @@ const Dashboard = () => {
         <AlertTriangle className="h-5 w-5" />
       </button>
 
-      {/* Ride Options Dialog */}
+      {/* Ride Options Dialog — Instant vs Schedule (matches reference UI) */}
       <Dialog open={!!selectedDest} onOpenChange={() => setSelectedDest(null)}>
-        <DialogContent className="max-w-sm mx-4">
-          <DialogHeader>
-            <DialogTitle>How would you like to travel?</DialogTitle>
+        <DialogContent className="max-w-sm mx-4 p-0 overflow-hidden">
+          <DialogHeader className="px-5 pt-5 pb-2">
+            <DialogTitle className="text-base">Choose your ride</DialogTitle>
           </DialogHeader>
           {selectedDest && (
-            <div className="space-y-3 pt-2">
-              <p className="text-sm text-muted-foreground truncate">
-                <MapPin className="inline h-3.5 w-3.5 mr-1" />
-                {selectedDest.address}
-              </p>
-              {/* Instant Ride - Orange CTA */}
+            <div className="px-4 pb-4 space-y-3">
+              {/* Route summary */}
+              <div className="bg-muted/40 rounded-xl p-3 space-y-1.5">
+                <div className="flex items-center gap-2 text-xs">
+                  <span className="h-2 w-2 rounded-full bg-primary flex-shrink-0" />
+                  <span className="truncate text-muted-foreground">{originAddress || "Current location"}</span>
+                </div>
+                <div className="flex items-center gap-2 text-xs">
+                  <span className="h-2 w-2 rounded-full bg-action flex-shrink-0" />
+                  <span className="truncate font-medium">{selectedDest.address}</span>
+                </div>
+              </div>
+
+              {/* Instant Ride - Orange graphic card */}
               <button
-                className="w-full p-4 rounded-xl gradient-action text-white text-left flex items-center gap-4 active:scale-[0.98] transition-transform"
+                className="w-full rounded-2xl gradient-action text-white text-left active:scale-[0.98] transition-transform shadow-lg overflow-hidden relative"
                 onClick={() => {
                   navigateToSearch({ address: selectedDest.address, lat: selectedDest.latitude, lng: selectedDest.longitude });
                   setSelectedDest(null);
                 }}
               >
-                <div className="p-2 bg-white/20 rounded-lg">
-                  <Navigation2 className="h-6 w-6" />
-                </div>
-                <div>
-                  <p className="font-bold text-lg">Instant Ride</p>
-                  <p className="text-sm opacity-90">Find a ride now</p>
+                <div className="px-5 py-4 flex items-center justify-between">
+                  <div>
+                    <p className="font-extrabold text-xl leading-tight">🚀 Instant Ride</p>
+                    <p className="text-sm opacity-95 mt-0.5">Find Ride Now</p>
+                  </div>
+                  <div className="text-3xl opacity-90">🛵</div>
                 </div>
               </button>
-              {/* Schedule Ride - Green CTA */}
+
+              {/* Schedule Ride - Green graphic card */}
               <button
-                className="w-full p-4 rounded-xl bg-success text-success-foreground text-left flex items-center gap-4 active:scale-[0.98] transition-transform"
+                className="w-full rounded-2xl bg-success text-success-foreground text-left active:scale-[0.98] transition-transform shadow-lg overflow-hidden relative"
                 onClick={() => {
                   navigateToRequest({ address: selectedDest.address, lat: selectedDest.latitude, lng: selectedDest.longitude });
                   setSelectedDest(null);
                 }}
               >
-                <div className="p-2 bg-white/20 rounded-lg">
-                  <CalendarPlus className="h-6 w-6" />
-                </div>
-                <div>
-                  <p className="font-bold text-lg">Schedule Ride</p>
-                  <p className="text-sm opacity-90">Plan for later</p>
+                <div className="px-5 py-4 flex items-center justify-between">
+                  <div>
+                    <p className="font-extrabold text-xl leading-tight">📅 Schedule Ride</p>
+                    <p className="text-sm opacity-95 mt-0.5">Plan for Later</p>
+                  </div>
+                  <div className="text-3xl opacity-90">🗓️</div>
                 </div>
               </button>
-              {/* Info banner */}
+
+              {/* Drivers-nearby banner (FOMO + savings) */}
               {nearbyRides.length > 0 && (
-                <p className="text-center text-xs text-muted-foreground pt-1">
-                  🚗 {nearbyRides.length} driver{nearbyRides.length !== 1 ? "s" : ""} nearby
-                </p>
+                <div className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground pt-1">
+                  <MapPin className="h-3.5 w-3.5 text-primary" />
+                  <span><span className="font-semibold text-foreground">{nearbyRides.length} drivers nearby</span> · Save up to ₹200 vs Uber</span>
+                </div>
               )}
             </div>
           )}
