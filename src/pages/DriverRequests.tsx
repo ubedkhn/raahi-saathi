@@ -7,11 +7,12 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   MapPin, Calendar, Users, CheckCircle, Loader2, User, Navigation,
-  ShieldCheck, Star, IndianRupee, Clock, XCircle, Flame
+  ShieldCheck, Star, IndianRupee, Clock, XCircle, Flame, AlertTriangle
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { useMyVehicles } from "@/hooks/useVehicles";
+import { useProfile } from "@/hooks/useProfile";
 import { useQueryClient } from "@tanstack/react-query";
 
 interface RiderProfile {
@@ -56,6 +57,7 @@ const DriverRequests = () => {
   const { toast } = useToast();
   const { user, loading: authLoading } = useAuth({ requireAuth: true });
   const { data: vehicles = [] } = useMyVehicles();
+  const { data: profile } = useProfile();
   const queryClient = useQueryClient();
 
   const [requests, setRequests] = useState<RideRequest[]>([]);
@@ -102,15 +104,14 @@ const DriverRequests = () => {
 
       const riderIds = [...new Set(filtered.map((r) => r.rider_id))];
 
-      // Fetch rider basic profiles, kyc, and avg ratings in parallel
-      const [profilesRes, kycRes, ratingsRes] = await Promise.all([
-        supabase.from("public_profiles_view").select("id, name, avatar_url").in("id", riderIds),
-        supabase.from("profiles").select("id, kyc_status").in("id", riderIds),
+      // Use safe profile view (no PII), plus avg rating in parallel
+      const [profilesRes, ratingsRes] = await Promise.all([
+        supabase.from("profile_safe").select("id, name, avatar_url, kyc_status, rating").in("id", riderIds),
         supabase.from("ratings").select("reviewee_id, rating").in("reviewee_id", riderIds),
       ]);
 
-      const profileMap = new Map((profilesRes.data || []).map((p) => [p.id, p]));
-      const kycMap = new Map((kycRes.data || []).map((k: any) => [k.id, k.kyc_status]));
+      const profileMap = new Map((profilesRes.data || []).map((p: any) => [p.id, p]));
+      const kycMap = new Map((profilesRes.data || []).map((p: any) => [p.id, p.kyc_status]));
       const ratingMap = new Map<string, { sum: number; count: number }>();
       (ratingsRes.data || []).forEach((r: any) => {
         const cur = ratingMap.get(r.reviewee_id) || { sum: 0, count: 0 };
@@ -220,6 +221,30 @@ const DriverRequests = () => {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  // KYC gate: only verified drivers can browse and accept ride requests
+  if (profile && profile.kyc_status !== "verified") {
+    return (
+      <div className="max-w-4xl mx-auto px-4 py-6 pb-24">
+        <Card>
+          <CardContent className="text-center py-12 space-y-4">
+            <div className="w-14 h-14 rounded-full bg-warning/15 flex items-center justify-center mx-auto">
+              <AlertTriangle className="h-7 w-7 text-warning" />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold">Complete KYC to accept rides</h2>
+              <p className="text-sm text-muted-foreground mt-1">
+                We verify every driver to keep Raahi safe. Finish your KYC and we'll unlock the requests feed.
+              </p>
+            </div>
+            <Button onClick={() => navigate("/profile/edit")} className="min-h-[44px]">
+              Complete KYC
+            </Button>
+          </CardContent>
+        </Card>
       </div>
     );
   }

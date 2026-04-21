@@ -134,11 +134,6 @@ const SearchRides = () => {
       const ride = rides.find(r => r.id === rideId);
       if (!ride) return;
 
-      // Calculate fare
-      const calculatedFare = ride.total_distance_km 
-        ? Number(ride.total_distance_km) * Number(ride.price_per_km)
-        : 0;
-
       // Use selected locations or fall back to ride's origin/destination
       const pickupLat = originLocation?.latitude ?? Number(ride.origin_lat);
       const pickupLng = originLocation?.longitude ?? Number(ride.origin_lng);
@@ -162,13 +157,23 @@ const SearchRides = () => {
       const result = typeof bookingResp === 'string' ? JSON.parse(bookingResp) : bookingResp;
       if (result.error) throw new Error(result.error);
 
+      // If we arrived from SearchModal with an open request, mark it as matched
+      const requestId = new URLSearchParams(window.location.search).get("request_id");
+      if (requestId) {
+        await supabase
+          .from("ride_requests")
+          .update({ status: "matched" })
+          .eq("id", requestId)
+          .eq("rider_id", user.id);
+      }
+
       toast.success("Ride booked successfully!", {
         description: "Waiting for driver to accept...",
       });
-      
+
       // Set booking ID for tracking
       setActiveBookingId(result.booking.id);
-      
+
       // Refresh search
       handleSearch(new Event("submit") as any);
     } catch (error: any) {

@@ -28,21 +28,21 @@ const Admin = () => {
   const checkAdminAndLoadData = async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      
+
       if (!user) {
         navigate("/admin/login");
         return;
       }
 
-      // Check admin role
-      const { data: roles } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", user.id)
-        .eq("role", "admin")
-        .maybeSingle();
+      // Server-side admin verification via SECURITY DEFINER RPC
+      const { data: isAdmin, error: roleError } = await supabase.rpc("has_role", {
+        _user_id: user.id,
+        _role: "admin",
+      });
 
-      if (!roles) {
+      if (roleError) throw roleError;
+
+      if (!isAdmin) {
         toast.error("Access Denied");
         navigate("/");
         return;
