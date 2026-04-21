@@ -225,6 +225,30 @@ const DriverRequests = () => {
     );
   }
 
+  // KYC gate: only verified drivers can browse and accept ride requests
+  if (profile && profile.kyc_status !== "verified") {
+    return (
+      <div className="max-w-4xl mx-auto px-4 py-6 pb-24">
+        <Card>
+          <CardContent className="text-center py-12 space-y-4">
+            <div className="w-14 h-14 rounded-full bg-warning/15 flex items-center justify-center mx-auto">
+              <AlertTriangle className="h-7 w-7 text-warning" />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold">Complete KYC to accept rides</h2>
+              <p className="text-sm text-muted-foreground mt-1">
+                We verify every driver to keep Raahi safe. Finish your KYC and we'll unlock the requests feed.
+              </p>
+            </div>
+            <Button onClick={() => navigate("/profile/edit")} className="min-h-[44px]">
+              Complete KYC
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-4xl mx-auto px-4 py-6 space-y-4 pb-24">
       <div>
