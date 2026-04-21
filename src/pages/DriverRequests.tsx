@@ -7,11 +7,12 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   MapPin, Calendar, Users, CheckCircle, Loader2, User, Navigation,
-  ShieldCheck, Star, IndianRupee, Clock, XCircle, Flame
+  ShieldCheck, Star, IndianRupee, Clock, XCircle, Flame, AlertTriangle
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { useMyVehicles } from "@/hooks/useVehicles";
+import { useProfile } from "@/hooks/useProfile";
 import { useQueryClient } from "@tanstack/react-query";
 
 interface RiderProfile {
@@ -56,6 +57,7 @@ const DriverRequests = () => {
   const { toast } = useToast();
   const { user, loading: authLoading } = useAuth({ requireAuth: true });
   const { data: vehicles = [] } = useMyVehicles();
+  const { data: profile } = useProfile();
   const queryClient = useQueryClient();
 
   const [requests, setRequests] = useState<RideRequest[]>([]);
@@ -102,15 +104,14 @@ const DriverRequests = () => {
 
       const riderIds = [...new Set(filtered.map((r) => r.rider_id))];
 
-      // Fetch rider basic profiles, kyc, and avg ratings in parallel
-      const [profilesRes, kycRes, ratingsRes] = await Promise.all([
-        supabase.from("public_profiles_view").select("id, name, avatar_url").in("id", riderIds),
-        supabase.from("profiles").select("id, kyc_status").in("id", riderIds),
+      // Use safe profile view (no PII), plus avg rating in parallel
+      const [profilesRes, ratingsRes] = await Promise.all([
+        supabase.from("profile_safe").select("id, name, avatar_url, kyc_status, rating").in("id", riderIds),
         supabase.from("ratings").select("reviewee_id, rating").in("reviewee_id", riderIds),
       ]);
 
-      const profileMap = new Map((profilesRes.data || []).map((p) => [p.id, p]));
-      const kycMap = new Map((kycRes.data || []).map((k: any) => [k.id, k.kyc_status]));
+      const profileMap = new Map((profilesRes.data || []).map((p: any) => [p.id, p]));
+      const kycMap = new Map((profilesRes.data || []).map((p: any) => [p.id, p.kyc_status]));
       const ratingMap = new Map<string, { sum: number; count: number }>();
       (ratingsRes.data || []).forEach((r: any) => {
         const cur = ratingMap.get(r.reviewee_id) || { sum: 0, count: 0 };

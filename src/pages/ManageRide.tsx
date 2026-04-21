@@ -84,28 +84,44 @@ const ManageRide = () => {
 
   const loadBooking = async () => {
     try {
+      // Driver SELECT must NOT include `otp` or `otp_verified`.
+      // Riders use the same code path; OTP is fetched separately via secure RPC.
+      const safeCols =
+        'id, ride_id, rider_id, pickup_lat, pickup_lng, drop_lat, drop_lng, ' +
+        'pickup_address, drop_address, fare_amount, status, created_at, ' +
+        'rides!inner(driver_id)';
+
       const { data, error } = await supabase
         .from('bookings')
-        .select(`*, rides!inner(driver_id)`)
+        .select(safeCols)
         .eq('id', bookingId)
         .single();
 
       if (error) throw error;
 
-      const driverMode = data.rides.driver_id === user?.id;
+      const driverMode = (data as any).rides.driver_id === user?.id;
       setIsDriver(driverMode);
 
-      if (!driverMode && data.rider_id !== user?.id) {
+      if (!driverMode && (data as any).rider_id !== user?.id) {
         toast({ title: "Unauthorized", description: "You are not part of this booking", variant: "destructive" });
         navigate('/dashboard');
         return;
       }
 
-      const participantId = driverMode ? data.rider_id : data.rides.driver_id;
+      const participantId = driverMode ? (data as any).rider_id : (data as any).rides.driver_id;
       const { data: profile } = await supabase.rpc('get_ride_participant_profile', { participant_id: participantId });
 
+      // Rider-only: pull OTP through secure RPC (server enforces rider_id = auth.uid())
+      let otpValue: string | null = null;
+      if (!driverMode) {
+        const { data: otpData } = await supabase.rpc('get_booking_otp', { _booking_id: bookingId });
+        otpValue = (otpData as string) || null;
+      }
+
       setBooking({
-        ...data,
+        ...(data as any),
+        otp: otpValue,
+        otp_verified: false,
         rider_profile: profile?.[0] || null,
       });
     } catch (error: any) {
@@ -120,16 +136,23 @@ const ManageRide = () => {
     const channel = supabase
       .channel(`booking-${bookingId}`)
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'bookings', filter: `id=eq.${bookingId}` },
-        (payload) => {
+        async (payload) => {
+          // Rider may need to refetch OTP when booking transitions to accepted
+          let nextOtp: string | null | undefined = undefined;
+          if (!isDriver && payload.new.status === 'accepted') {
+            const { data: otpData } = await supabase.rpc('get_booking_otp', { _booking_id: bookingId });
+            nextOtp = (otpData as string) || null;
+          }
           setBooking(prev => {
             if (!prev) return null;
-            const updated = { ...prev, ...payload.new };
+            // Strip otp/otp_verified from realtime payload for driver safety
+            const { otp: _o, otp_verified: _v, ...safe } = payload.new as any;
+            const updated = { ...prev, ...safe } as any;
+            if (nextOtp !== undefined) updated.otp = nextOtp;
             if (payload.new.status === 'completed' && prev.status !== 'completed') {
-              // Prompt both rider AND driver to rate
               setTimeout(() => setShowRatingModal(true), 500);
             }
-            // OTP toast for rider: notify when OTP appears
-            if (!isDriver && payload.new.otp && !prev.otp) {
+            if (!isDriver && nextOtp && !prev.otp) {
               toast({ title: "OTP Ready! 🔑", description: "Share this OTP with your driver to start the ride." });
             }
             return updated;
@@ -261,13 +284,18 @@ const ManageRide = () => {
     }
     setVerifyingOtp(true);
     try {
-      if (otpInput !== booking?.otp) {
+      // Server-side verify: function compares OTP and updates booking status atomically.
+      // The OTP value is never returned to the driver client.
+      const { data: ok, error } = await supabase.rpc('verify_booking_otp', {
+        _booking_id: bookingId,
+        _otp: otpInput,
+      });
+      if (error) throw error;
+      if (!ok) {
         toast({ title: "Incorrect OTP", description: "Please try again.", variant: "destructive" });
         setVerifyingOtp(false);
         return;
       }
-      const { error } = await supabase.from('bookings').update({ status: 'in_progress', otp_verified: true }).eq('id', bookingId);
-      if (error) throw error;
       queryClient.invalidateQueries({ queryKey: ['my-rides'] });
       queryClient.invalidateQueries({ queryKey: ['my-bookings'] });
       toast({ title: "Ride Started! 🚀", description: "Have a safe journey!" });
