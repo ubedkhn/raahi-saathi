@@ -28,17 +28,16 @@ const AdminLogin = () => {
 
       if (!authData.user) throw new Error("No user data");
 
-      // Check if user has admin role
-      const { data: roles, error: roleError } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", authData.user.id)
-        .eq("role", "admin")
-        .maybeSingle();
+      // Server-side admin verification via SECURITY DEFINER function.
+      // Avoids trusting any client-side role list.
+      const { data: isAdmin, error: roleError } = await supabase.rpc('has_role', {
+        _user_id: authData.user.id,
+        _role: 'admin',
+      });
 
       if (roleError) throw roleError;
 
-      if (!roles) {
+      if (!isAdmin) {
         await supabase.auth.signOut();
         toast.error("Access Denied", {
           description: "You don't have admin privileges.",
