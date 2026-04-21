@@ -120,6 +120,13 @@ export type Database = {
             foreignKeyName: "bookings_rider_id_fkey"
             columns: ["rider_id"]
             isOneToOne: false
+            referencedRelation: "profile_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bookings_rider_id_fkey"
+            columns: ["rider_id"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -203,6 +210,13 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "emergency_contacts_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profile_safe"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "emergency_contacts_user_id_fkey"
             columns: ["user_id"]
@@ -307,6 +321,13 @@ export type Database = {
             foreignKeyName: "payments_driver_id_fkey"
             columns: ["driver_id"]
             isOneToOne: false
+            referencedRelation: "profile_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payments_driver_id_fkey"
+            columns: ["driver_id"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -315,6 +336,13 @@ export type Database = {
             columns: ["driver_id"]
             isOneToOne: false
             referencedRelation: "public_profiles_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payments_rider_id_fkey"
+            columns: ["rider_id"]
+            isOneToOne: false
+            referencedRelation: "profile_safe"
             referencedColumns: ["id"]
           },
           {
@@ -371,6 +399,13 @@ export type Database = {
           women_only_mode?: boolean | null
         }
         Relationships: [
+          {
+            foreignKeyName: "preferences_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "profile_safe"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "preferences_user_id_fkey"
             columns: ["user_id"]
@@ -504,6 +539,13 @@ export type Database = {
             foreignKeyName: "ratings_reviewee_id_fkey"
             columns: ["reviewee_id"]
             isOneToOne: false
+            referencedRelation: "profile_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ratings_reviewee_id_fkey"
+            columns: ["reviewee_id"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -512,6 +554,13 @@ export type Database = {
             columns: ["reviewee_id"]
             isOneToOne: false
             referencedRelation: "public_profiles_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ratings_reviewer_id_fkey"
+            columns: ["reviewer_id"]
+            isOneToOne: false
+            referencedRelation: "profile_safe"
             referencedColumns: ["id"]
           },
           {
@@ -680,6 +729,13 @@ export type Database = {
             foreignKeyName: "rides_driver_id_fkey"
             columns: ["driver_id"]
             isOneToOne: false
+            referencedRelation: "profile_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rides_driver_id_fkey"
+            columns: ["driver_id"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -777,6 +833,13 @@ export type Database = {
             foreignKeyName: "support_tickets_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
+            referencedRelation: "profile_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "support_tickets_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -855,6 +918,13 @@ export type Database = {
             foreignKeyName: "vehicles_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
+            referencedRelation: "profile_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vehicles_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -906,6 +976,13 @@ export type Database = {
             foreignKeyName: "wallet_transactions_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
+            referencedRelation: "profile_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wallet_transactions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -920,6 +997,33 @@ export type Database = {
       }
     }
     Views: {
+      profile_safe: {
+        Row: {
+          avatar_url: string | null
+          gender: Database["public"]["Enums"]["gender"] | null
+          id: string | null
+          kyc_status: Database["public"]["Enums"]["kyc_status"] | null
+          name: string | null
+          rating: number | null
+        }
+        Insert: {
+          avatar_url?: string | null
+          gender?: Database["public"]["Enums"]["gender"] | null
+          id?: string | null
+          kyc_status?: Database["public"]["Enums"]["kyc_status"] | null
+          name?: string | null
+          rating?: never
+        }
+        Update: {
+          avatar_url?: string | null
+          gender?: Database["public"]["Enums"]["gender"] | null
+          id?: string | null
+          kyc_status?: Database["public"]["Enums"]["kyc_status"] | null
+          name?: string | null
+          rating?: never
+        }
+        Relationships: []
+      }
       public_profiles_view: {
         Row: {
           avatar_url: string | null
@@ -952,6 +1056,7 @@ export type Database = {
       }
       expire_old_ride_requests: { Args: never; Returns: undefined }
       generate_booking_otp: { Args: never; Returns: string }
+      get_booking_otp: { Args: { _booking_id: string }; Returns: string }
       get_ride_driver_id: { Args: { _ride_id: string }; Returns: string }
       get_ride_participant_profile: {
         Args: { participant_id: string }
@@ -998,6 +1103,10 @@ export type Database = {
       }
       user_has_booking_on_ride: {
         Args: { _ride_id: string; _user_id: string }
+        Returns: boolean
+      }
+      verify_booking_otp: {
+        Args: { _booking_id: string; _otp: string }
         Returns: boolean
       }
     }
