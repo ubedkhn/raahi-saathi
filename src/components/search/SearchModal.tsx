@@ -173,6 +173,7 @@ const SearchModal = ({ open, onClose }: SearchModalProps) => {
         dest_lat: String(d.lat),
         dest_lng: String(d.lng),
         dest_address: d.address,
+        request_id: requestId,
       });
       navigate(`/search-rides?${params.toString()}`);
     } else {
