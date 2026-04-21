@@ -43,11 +43,10 @@ serve(async (req) => {
         url = `https://api.olamaps.io/routing/v1/distanceMatrix?origins=${params.origins}&destinations=${params.destinations}&api_key=${apiKey}`;
         break;
       case "map-style":
-        // Return the style URL for vector tiles
+        // Return only the style URL — never expose the API key to clients.
         return new Response(
           JSON.stringify({
             styleUrl: `https://api.olamaps.io/tiles/vector/v1/styles/default-light-standard/style.json`,
-            apiKey,
           }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );

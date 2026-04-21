@@ -283,24 +283,13 @@ const ManageRide = () => {
 
   const handlePaymentComplete = async (finalAmount: number) => {
     try {
-      const { error } = await supabase.from('bookings').update({ status: 'completed', fare_amount: finalAmount }).eq('id', bookingId);
+      // Server-side secure function: validates driver, prevents duplicate payouts,
+      // updates booking status and writes both wallet entries atomically.
+      const { error } = await supabase.rpc('complete_ride_payment', {
+        _booking_id: bookingId,
+        _final_amount: finalAmount,
+      });
       if (error) throw error;
-
-      if (booking && user) {
-        const platformFee = finalAmount * 0.05;
-        const driverEarnings = finalAmount - platformFee;
-
-        await supabase.from('wallet_transactions').insert({
-          user_id: user.id, type: 'credit', amount: driverEarnings,
-          description: `Ride earnings - ${booking.pickup_address} to ${booking.drop_address}`,
-          reference_id: booking.id, status: 'completed'
-        });
-        await supabase.from('wallet_transactions').insert({
-          user_id: booking.rider_id, type: 'debit', amount: finalAmount,
-          description: `Ride payment - ${booking.pickup_address} to ${booking.drop_address}`,
-          reference_id: booking.id, status: 'completed'
-        });
-      }
 
       queryClient.invalidateQueries({ queryKey: ['my-rides'] });
       queryClient.invalidateQueries({ queryKey: ['my-bookings'] });
